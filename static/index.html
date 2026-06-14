@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多 Agent 智能客服系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  height: 100vh; display: flex; align-items: center; justify-content: center;
+}
+/* 整体卡片容器 */
+.app-container {
+  width: 1000px; height: 680px; background: #fff; border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25); display: flex; overflow: hidden;
+}
+/* 侧边栏 */
+.sidebar {
+  width: 260px; background: #f8f9fc; border-right: 1px solid #eee;
+  display: flex; flex-direction: column;
+}
+.sidebar-header {
+  padding: 24px 20px; background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+}
+.sidebar-header h2 { font-size: 18px; font-weight: 700; }
+.sidebar-header p { font-size: 12px; opacity: .8; margin-top: 4px; }
+.conv-list { flex: 1; overflow-y: auto; padding: 8px; }
+.conv-item {
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 4px;
+  cursor: pointer; font-size: 13px; color: #555;
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background .15s;
+}
+.conv-item:hover { background: #eef0ff; }
+.conv-item.active { background: #e0e3ff; color: #4c51bf; font-weight: 600; }
+.conv-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-item .del { color: #cbd5e0; font-size: 14px; cursor: pointer; padding: 2px 4px; }
+.conv-item .del:hover { color: #e53e3e; }
+.sidebar-footer {
+  padding: 16px; border-top: 1px solid #eee; font-size: 12px; color: #999;
+}
+.sidebar-footer .scene {
+  display: block; padding: 6px 10px; margin-top: 6px; border-radius: 6px;
+  background: #f0f0ff; color: #667eea; cursor: pointer; border: none;
+  font-size: 12px; text-align: left; transition: background .15s;
+}
+.sidebar-footer .scene:hover { background: #e0e3ff; }
+/* 主区域 */
+.main { flex: 1; display: flex; flex-direction: column; }
+/* 顶部栏 */
+.topbar {
+  padding: 16px 24px; border-bottom: 1px solid #eee;
+  display: flex; align-items: center; gap: 10px;
+}
+.topbar .agent-avatar {
+  width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff;
+}
+.topbar .agent-info h3 { font-size: 15px; color: #333; }
+.topbar .agent-info span { font-size: 12px; color: #68d391; }
+.topbar .agent-info span::before { content: "● "; }
+/* 聊天区 */
+.chat-area {
+  flex: 1; overflow-y: auto; padding: 24px;
+  background: linear-gradient(to bottom, #f7f8fc 0%, #fff 100%);
+  display: flex; flex-direction: column; gap: 18px;
+}
+/* 时间分割线 */
+.time-divider {
+  text-align: center; font-size: 12px; color: #cbd5e0; margin: 8px 0;
+}
+/* 消息气泡 */
+.msg { display: flex; gap: 10px; max-width: 78%; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg .avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.msg.user .avatar { background: #667eea; }
+.msg.assistant .avatar { background: #f0f0ff; border: 2px solid #e0e3ff; }
+.msg .content-wrapper { display: flex; flex-direction: column; gap: 4px; }
+.msg .bubble {
+  padding: 12px 16px; border-radius: 14px; line-height: 1.65; font-size: 14px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.msg.user .bubble {
+  background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.msg.assistant .bubble {
+  background: #fff; border: 1px solid #edf2f7; color: #333;
+  border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+/* 意图标签 */
+.msg .meta-row { display: flex; align-items: center; gap: 6px; }
+.intent-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 500;
+}
+.intent-badge.tech_support   { background: #e3f2fd; color: #1565c0; }
+.intent-badge.order_service  { background: #e8f5e9; color: #2e7d32; }
+.intent-badge.product_consult{ background: #f3e5f5; color: #7b1fa2; }
+.intent-badge.web_search      { background: #e0f2f1; color: #00695c; }
+.intent-badge.chitchat       { background: #e8eaf6; color: #283593; }
+.intent-badge.escalate       { background: #fbe9e7; color: #d84315; }
+.conf-text { font-size: 11px; color: #a0aec0; }
+/* 转人工横幅 */
+.escalation-alert {
+  background: #fff8e1; border: 1px solid #ffcc02; border-radius: 10px;
+  padding: 10px 14px; font-size: 13px; color: #795548;
+  display: flex; align-items: center; gap: 8px;
+}
+/* 进度提示 */
+.progress-text { color: #a0aec0 !important; font-style: italic; }
+/* 输入区 */
+.input-area {
+  padding: 16px 24px; border-top: 1px solid #eee; background: #fff;
+  display: flex; gap: 12px; align-items: center;
+}
+.input-area input {
+  flex: 1; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 25px;
+  font-size: 14px; outline: none; transition: border-color .2s;
+}
+.input-area input:focus { border-color: #667eea; }
+.input-area button {
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
+  font-size: 18px; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .15s, box-shadow .15s;
+}
+.input-area button:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(102,126,234,.4); }
+.input-area button:disabled { opacity: .4; transform: none; box-shadow: none; cursor: not-allowed; }
+/* 状态栏 */
+.status-bar {
+  padding: 6px 24px; background: #fafafa; border-top: 1px solid #eee;
+  font-size: 11px; color: #a0aec0; display: flex; justify-content: space-between;
+}
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- 侧边栏 -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>🤖 智能客服</h2>
+      <p>Multi-Agent · 7×24h 在线</p>
+    </div>
+    <div class="conv-list" id="conv-list">
+      <div class="conv-item active" onclick="newChat()" style="font-weight:600;">
+        <span class="title">💬 新对话</span>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      💡 快速体验
+      <button class="scene" onclick="quickAsk('蓝牙连不上怎么办')">🔧 蓝牙连接问题</button>
+      <button class="scene" onclick="quickAsk('帮我查一下订单 ORD001')">📦 查询订单</button>
+      <button class="scene" onclick="quickAsk('推荐一款 1000 以内的手表')">🛍️ 产品推荐</button>
+          <button class="scene" onclick="quickAsk('Apple Watch Ultra 最新参数和价格')">🌐 联网搜索</button>
+    </div>
+  </div>
+
+  <!-- 主区域 -->
+  <div class="main">
+    <div class="topbar">
+      <div class="agent-avatar">🤖</div>
+      <div class="agent-info">
+        <h3>智能客服助手</h3>
+        <span>在线</span>
+      </div>
+    </div>
+
+    <div class="chat-area" id="chat-area">
+      <div class="time-divider">—— 对话开始 ——</div>
+      <div class="msg assistant">
+        <div class="avatar">🤖</div>
+        <div class="content-wrapper">
+          <div class="bubble">你好！我是智能客服助手 👋<br><br>💬 <b>前台接待</b> — 问候闲聊、识别意图并自动转接<br>🔧 <b>技术支持</b> — 故障排除、使用帮助<br>📦 <b>订单专员</b> — 订单查询、物流跟踪<br>🛍️ <b>产品顾问</b> — 商品推荐、价格查询<br>🌐 <b>联网搜索</b> — 商品参数、行情查询<br><br>直接告诉我你的问题，我来帮你处理～</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <input id="question" placeholder="输入你的问题..." onkeydown="if(event.key==='Enter') send()">
+      <button id="send-btn" onclick="send()" title="发送">➤</button>
+    </div>
+    <div class="status-bar">
+      <span id="status">已连接 · 5 个 Agent 就绪</span>
+      <span id="agent-name"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+let conversationId = null;
+let sending = false;
+
+const INTENT_LABELS = {
+  chitchat:        { icon: '💬', text: '前台接待', emoji: '👋' },
+  tech_support:    { icon: '🔧', text: '技术支持', emoji: '👨‍💻' },
+  order_service:   { icon: '📦', text: '订单服务', emoji: '📋' },
+  web_search:      { icon: '🌐', text: '联网搜索', emoji: '🔍' },
+  product_consult: { icon: '🛍️', text: '产品顾问', emoji: '💡' },
+  escalate:        { icon: '🔄', text: '转人工',   emoji: '📞' },
+};
+
+// ======== 快速提问 ========
+function quickAsk(text) {
+  document.getElementById('question').value = text;
+  send();
+}
+
+// ======== 对话列表 ========
+async function loadConversations() {
+  try {
+    const r = await fetch('/api/v1/conversations/');
+    const data = await r.json();
+    const list = document.getElementById('conv-list');
+    const newChatHtml = `<div class="conv-item ${conversationId ? '' : 'active'}" onclick="newChat()" style="font-weight:600;">
+      <span class="title">💬 新对话</span>
+    </div>`;
+    const items = data.conversations.map(c =>
+      `<div class="conv-item ${c.conversation_id === conversationId ? 'active' : ''}" onclick="switchChat('${c.conversation_id}')">
+        <span class="title">${c.title || '(空)'}</span>
+        <span class="del" onclick="event.stopPropagation();deleteConv('${c.conversation_id}')" title="删除">✕</span>
+      </div>`
+    ).join('');
+    list.innerHTML = newChatHtml + items;
+  } catch(e) { console.error(e); }
+}
+
+function newChat() {
+  conversationId = null;
+  const area = document.getElementById('chat-area');
+  area.innerHTML = `<div class="time-divider">—— 新对话 ——</div>
+  <div class="msg assistant">
+    <div class="avatar">🤖</div>
+    <div class="content-wrapper">
+      <div class="bubble">你好！我是智能客服助手 👋<br><br>直接告诉我你的问题，我会自动转接给最合适的 Agent 为你服务～</div>
+    </div>
+  </div>`;
+  setStatus('已连接 · 5 个 Agent 就绪', '');
+  loadConversations();
+}
+
+async function deleteConv(id) {
+  if (!confirm('确定删除该对话？')) return;
+  try {
+    await fetch('/api/v1/conversations/' + id, { method: 'DELETE' });
+    if (conversationId === id) newChat();
+    loadConversations();
+  } catch(e) { alert('删除失败: ' + e.message); }
+}
+
+async function switchChat(id) {
+  conversationId = id;
+  loadConversations();
+  setStatus('加载中...', '');
+  const area = document.getElementById('chat-area');
+  area.innerHTML = '';
+  try {
+    const r = await fetch('/api/v1/conversations/' + id);
+    const data = await r.json();
+    area.innerHTML = `<div class="time-divider">—— 历史对话 ——</div>`;
+    data.messages.forEach(m => addMessage(m.role, m.content));
+    setStatus('对话: ' + (data.title || id), '');
+  } catch(e) {
+    setStatus('加载失败', '');
+  }
+}
+
+// ======== 发送消息 ========
+async function send() {
+  if (sending) return;
+  const input = document.getElementById('question');
+  const q = input.value.trim();
+  if (!q) return;
+  sending = true;
+  input.value = '';
+  setStatus('处理中...', '');
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+
+  addMessage('user', q);
+
+  try {
+    const r = await fetch('/api/v1/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: q, conversation_id: conversationId }),
+    });
+
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let answer = '';
+    let intent = '';
+    let confidence = 0;
+    let escalated = false;
+
+    const msgEl = addMessage('assistant', '');
+    const bubble = msgEl.querySelector('.bubble');
+    bubble.className += ' progress-text';
+    bubble.textContent = '...';
+
+    let pendingEvent = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      for (const line of text.split('\n')) {
+        if (line.startsWith('event: ')) {
+          pendingEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && pendingEvent) {
+          const data = JSON.parse(line.slice(6));
+          const event = pendingEvent;
+          pendingEvent = null;
+
+          if (event === 'progress') {
+            setStatus(data.status, '');
+          } else if (event === 'intent') {
+            intent = data.intent;
+            confidence = data.confidence;
+            showIntentMeta(msgEl, intent, confidence);
+            // 更新顶部栏
+            const info = INTENT_LABELS[intent] || { icon: '🤖', text: intent, emoji: '🤖' };
+            document.querySelector('.topbar .agent-avatar').textContent = info.emoji;
+            document.querySelector('.topbar .agent-info h3').textContent = info.text;
+            document.getElementById('agent-name').textContent = info.icon + ' ' + info.text;
+          } else if (event === 'done') {
+            conversationId = data.conversation_id;
+            escalated = data.escalated;
+            const qs = data.quality_score ? `质量 ${(data.quality_score * 100).toFixed(0)} 分` : '';
+            const info = INTENT_LABELS[intent] || {};
+            setStatus(qs, info.icon ? `${info.icon} ${info.text}` : '');
+            if (escalated) showEscalationAlert(msgEl, data.escalation_reason);
+            loadConversations();
+          }
+        } else if (line.startsWith('data: ')) {
+          const data = JSON.parse(line.slice(6));
+          if (!answer) {
+            bubble.className = bubble.className.replace(' progress-text', '');
+          }
+          answer += data.token;
+          bubble.textContent = answer;
+        }
+      }
+    }
+  } catch(e) {
+    addMessage('assistant', '❌ 出错了: ' + e.message);
+    setStatus('请求失败', '');
+  } finally {
+    sending = false;
+    btn.disabled = false;
+    // 恢复顶部栏默认
+    setTimeout(() => {
+      if (!conversationId) {
+        document.querySelector('.topbar .agent-avatar').textContent = '🤖';
+        document.querySelector('.topbar .agent-info h3').textContent = '智能客服助手';
+        document.getElementById('agent-name').textContent = '';
+      }
+    }, 3000);
+  }
+}
+
+function addMessage(role, content) {
+  const area = document.getElementById('chat-area');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const avatarEmoji = role === 'user' ? '👤' : '🤖';
+  div.innerHTML = `
+    <div class="avatar">${avatarEmoji}</div>
+    <div class="content-wrapper">
+      <div class="bubble">${content}</div>
+    </div>
+  `;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+function showIntentMeta(msgEl, intent, confidence) {
+  const wrapper = msgEl.querySelector('.content-wrapper');
+  // 移除已有元信息
+  const existing = wrapper.querySelector('.meta-row');
+  if (existing) existing.remove();
+
+  const info = INTENT_LABELS[intent] || { icon: '🤖', text: intent };
+  const row = document.createElement('div');
+  row.className = 'meta-row';
+  row.innerHTML = `
+    <span class="intent-badge ${intent}">${info.icon} ${info.text}</span>
+    <span class="conf-text">意图把握 ${(confidence * 100).toFixed(0)}%</span>
+  `;
+  wrapper.insertBefore(row, wrapper.firstChild);
+}
+
+function showEscalationAlert(msgEl, reason) {
+  const wrapper = msgEl.querySelector('.content-wrapper');
+  const alert = document.createElement('div');
+  alert.className = 'escalation-alert';
+  alert.innerHTML = '⚠️ ' + (reason || '建议转人工客服进一步处理');
+  wrapper.appendChild(alert);
+}
+
+function setStatus(left, right) {
+  document.getElementById('status').textContent = left;
+  if (right !== undefined) document.getElementById('agent-name').textContent = right;
+}
+
+// 初始化
+loadConversations();
+</script>
+</body>
+</html>
