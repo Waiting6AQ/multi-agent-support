@@ -30,3 +30,9 @@ python-dotenv>=1.0.0
 # Async HTTP
 httpx>=0.27.0
 aiohttp>=3.10.0
+
+# MCP
+langchain-mcp-adapters>=0.1.0
+
+# Agent Skills
+deepagents>=0.5.0

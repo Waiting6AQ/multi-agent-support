@@ -5,9 +5,9 @@
 ## 特性
 
 - **Coordinator 模式**：ReceptionistAgent 统一接待，JSON Mode 结构化输出，一次调用同时完成意图分类和自然语言回复
-- **多 Agent 协作**：5 个 Agent 各司其职 — 前台接待、技术支持（向量检索 FAQ）、订单服务（SQLite）、产品咨询（SQLite）、联网搜索（DashScope 内置搜索）
+- **多 Agent 协作**：5 个 Agent 各司其职 — 前台接待、技术支持（向量检索 FAQ + Agent Skills 兜底）、订单服务（SQLite）、产品咨询（SQLite）、联网搜索（百度搜索 MCP）
 - **智能路由**：基于意图的条件路由，闲聊/转人工直接回复，业务意图转专业 Agent
-- **混合数据源**：FAQ 用 ChromaDB 向量检索（非结构化语义匹配），订单/产品用 SQLite（结构化精确查询），外部信息走 DashScope 联网搜索
+- **混合数据源**：FAQ 用 ChromaDB 向量检索（非结构化语义匹配），订单/产品用 SQLite（结构化精确查询），外部信息走 MCP 百度搜索
 - **质量监控**：LLM 四维度评估回复质量，低分自动升级人工（联网搜索结果跳过质量检查）
 - **多轮对话**：AsyncSqliteSaver 持久化 + `add_messages` 自动管理，上下文截断防止无限增长
 - **Token 级流式输出**：SSE 格式，实时意图反馈 + 打字机效果 + 质量评分
@@ -19,10 +19,11 @@
 | ---------- | ------------------------------------------------------------------------- |
 | Web 框架   | FastAPI + Uvicorn                                                         |
 | LLM 编排   | LangGraph StateGraph（7 节点管线）                                        |
-| Agent 创建 | `create_agent`（工具型 Agent）+ JSON Mode（接待员）                       |
+| Agent 创建 | `create_agent`（工具型 Agent）+ `create_deep_agent`（Skill Agent）+ JSON Mode（接待员） |
 | LLM        | 通义千问 Qwen3-Max (DashScope)                                            |
 | JSON Mode  | DashScope `response_format={"type": "json_object"}`                       |
-| 联网搜索   | DashScope `enable_search` + `agent_max` + `enable_thinking`               |
+| 联网搜索   | MCP (mcpmarket.cn 百度搜索)                                               |
+| Agent Skill | Deep Agents SkillsMiddleware + FilesystemBackend，渐进式披露              |
 | Embeddings | DashScope `text-embedding-v4`                                             |
 | 向量存储   | ChromaDB 本地持久化（FAQ）                                                |
 | 关系数据库 | SQLite（订单、产品、对话元数据）                                          |
@@ -52,13 +53,15 @@ multi_agent_fastapi/
 │   └── conversation_service.py # 对话元数据 CRUD
 ├── agents/
 │   ├── receptionist.py         # 前台接待 Agent（JSON Mode）
-│   ├── tech_support.py         # 技术支持 Agent（ChromaDB FAQ 检索）
+│   ├── tech_support.py         # 技术支持 Agent（ChromaDB FAQ + Agent Skill 兜底）
 │   ├── order_service.py        # 订单服务 Agent（SQLite 查询）
 │   ├── product_consult.py      # 产品咨询 Agent（SQLite 查询 + 推荐）
-│   └── web_search.py           # 联网搜索 Agent（DashScope 内置搜索）
+│   └── web_search.py           # 联网搜索 Agent（MCP 百度搜索）
+├── skills/                     # Agent Skills 目录
+│   └── tech_support/           # 技术支持 Agent 专属 Skill 分组
 ├── utils/
 │   ├── embeddings.py           # 向量模型封装（AliyunEmbeddings）
-│   ├── llm.py                  # LLM 工厂（标准/JSON/搜索三种模式）
+│   ├── llm.py                  # LLM 工厂（标准/JSON 两种模式）
 │   ├── db_schema.py            # 数据库 DDL
 │   ├── db_seed.py              # 种子数据（FAQ/订单/产品）
 │   ├── db_init.py              # 数据初始化入口
@@ -88,10 +91,10 @@ START → receptionist → 条件路由
 | 节点                         | 职责                                                                    |
 | ---------------------------- | ----------------------------------------------------------------------- |
 | `receptionist`               | JSON Mode 前台接待：意图分类 + 闲聊/转人工时直接生成自然语言回复        |
-| `tech_support`               | FAQ 向量检索 → Agent 推理 → 生成技术解决方案                            |
+| `tech_support`               | FAQ 向量检索 → Agent 推理 → FAQ 未命中时加载 Agent Skill 排查流程       |
 | `order_service`              | SQLite 订单查询 / 物流跟踪 → Agent 整理回复                             |
 | `product_consult`            | SQLite 产品搜索 / 预算推荐 → Agent 推荐回复                             |
-| `web_search`                 | DashScope 内置联网搜索 → Agent 整理搜索结果为结构化回复（跳过质量检查） |
+| `web_search`                 | MCP 百度搜索 → Agent 整理搜索结果为结构化回复（跳过质量检查）           |
 | `quality_check`              | LLM 四维度评估（相关性/完整性/专业性/有用性），低分标记转人工           |
 | `escalate_final` / `respond` | 标记转人工（前端展示横幅）/ 正常透传                                    |
 
@@ -110,12 +113,12 @@ START → receptionist → 条件路由
     ▼    ▼        ▼        ▼
 ┌──────┐┌──────┐┌──────┐┌──────────┐
 │ Tech ││Order ││Prod. ││WebSearch │
-│Support││Service││Consult││(联网搜索) │
-└──┬───┘└──┬───┘└──┬───┘└──────────┘
-   │      │       │
-   ▼      ▼       ▼
-ChromaDB SQLite  SQLite
-(FAQ×6)(订单×3)(产品×4)
+│Support││Service││Consult││(MCP搜索) │
+└──┬───┘└──┬───┘└──┬───┘└────┬─────┘
+   │      │       │         │
+   ▼      ▼       ▼         ▼
+ChromaDB SQLite  SQLite  MCP百度搜索
+(FAQ×6)(订单×3)(产品×4)  (外部HTTP)
 ```
 
 ## 快速开始

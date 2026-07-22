@@ -10,8 +10,8 @@ import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_chroma import Chroma
 
-from core.config import settings
-from utils.llm import create_llm, create_json_llm, create_search_llm
+from core.config import settings, MCP_SERVERS
+from utils.llm import create_llm, create_json_llm
 from utils.embeddings import AliyunEmbeddings
 from services.quality_checker import QualityChecker
 from services.conversation_service import ConversationService
@@ -21,6 +21,7 @@ from agents.order_service import OrderServiceAgent
 from agents.product_consult import ProductConsultAgent
 from agents.receptionist import ReceptionistAgent
 from agents.web_search import WebSearchAgent
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
 # ==================== 模块级缓存 ====================
 
@@ -34,7 +35,6 @@ _quality_checker = None
 _tech_agent = None
 _order_agent = None
 _product_agent = None
-_search_llm = None
 _web_agent = None
 _agent_service = None
 _conversation_service = None
@@ -137,19 +137,28 @@ def get_product_agent() -> ProductConsultAgent:
     return _product_agent
 
 
-def get_search_llm():
-    """联网搜索专用 LLM 单例（开启 enable_search + agent_max）"""
-    global _search_llm
-    if _search_llm is None:
-        _search_llm = create_search_llm()
-    return _search_llm
+async def _get_mcp_tools(server_names: list[str] | None = None) -> list:
+    """获取指定 MCP Server 的工具列表
+
+    不做模块级缓存——get_web_agent 自身已有单例缓存，
+    此函数只在其初始化时调用一次。
+    server_names：None 获取全部，传列表则只连指定服务。
+    """
+    servers = {
+        k: v
+        for k, v in MCP_SERVERS.items()
+        if server_names is None or k in server_names
+    }
+    client = MultiServerMCPClient(servers)
+    return await client.get_tools()
 
 
-def get_web_agent() -> WebSearchAgent:
-    """联网搜索 Agent 单例"""
+async def get_web_agent() -> WebSearchAgent:
+    """联网搜索 Agent 单例（注入百度搜索 MCP 工具）"""
     global _web_agent
     if _web_agent is None:
-        _web_agent = WebSearchAgent(search_llm=get_search_llm())
+        mcp_tools = await _get_mcp_tools(server_names=["baidu_search"])
+        _web_agent = WebSearchAgent(llm=get_llm(), tools=mcp_tools)
     return _web_agent
 
 
@@ -165,7 +174,7 @@ async def get_agent_service() -> AgentService:
             tech_agent=get_tech_agent(),
             order_agent=get_order_agent(),
             product_agent=get_product_agent(),
-            web_agent=get_web_agent(),
+            web_agent=await get_web_agent(),
         )
     return _agent_service
 

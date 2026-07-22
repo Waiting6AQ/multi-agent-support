@@ -24,10 +24,12 @@ multi_agent_fastapi/
 │   ├── tech_support.py         # 技术支持 Agent
 │   ├── order_service.py        # 订单服务 Agent
 │   ├── product_consult.py      # 产品咨询 Agent
-│   └── web_search.py           # 联网搜索 Agent
+│   └── web_search.py           # 联网搜索 Agent（MCP 百度搜索）
+├── skills/                     # Agent Skills 目录
+│   └── tech_support/           # 技术支持 Agent 专属 Skill
 ├── utils/
 │   ├── embeddings.py           # AliyunEmbeddings
-│   ├── llm.py                  # LLM 工厂（含 create_json_llm / create_search_llm）
+│   ├── llm.py                  # LLM 工厂（create_llm / create_json_llm）
 │   ├── db_schema.py            # 数据库 DDL
 │   ├── db_seed.py              # 种子数据
 │   ├── db_init.py              # 数据初始化入口

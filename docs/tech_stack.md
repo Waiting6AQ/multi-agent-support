@@ -9,8 +9,8 @@
 | 工作流编排 | LangGraph 1.2.x | StateGraph + AsyncSqliteSaver 持久化 |
 | LLM 模型 | 通义千问 Qwen3-Max (DashScope) | 通用 LLM |
 | JSON Mode | DashScope response_format | ReceptionistAgent 结构化输出 |
-| 联网搜索 | DashScope enable_search + agent_max | WebSearchAgent 内置搜索 |
-| LLM 思考 | DashScope enable_thinking | 配合 agent_max 使用 |
+| 联网搜索 | MCP (mcpmarket.cn 百度搜索) | WebSearchAgent 通过 MCP 协议接入免费搜索 |
+| Agent Skills | Deep Agents SkillsMiddleware | TechSupportAgent FAQ 未命中时渐进式加载排查规范 |
 | Embeddings | DashScope text-embedding-v4 | FAQ 向量嵌入 |
 | 向量数据库 | ChromaDB | FAQ 本地持久化向量检索 |
 | 关系数据库 | SQLite (sqlite3) | 订单、产品、对话元数据 |

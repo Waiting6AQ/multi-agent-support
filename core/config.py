@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = str(BASE_DIR / "data" / "chroma_db")
     CHECKPOINT_DB_PATH: str = str(BASE_DIR / "data" / "checkpoints.db")
     APP_DB_PATH: str = str(BASE_DIR / "data" / "app.db")
+    SKILLS_DIR: str = str(BASE_DIR / "skills")
 
     class Config:
         env_file = str(BASE_DIR / ".env")
@@ -39,3 +40,12 @@ class Settings(BaseSettings):
 
 # 全局配置单例
 settings = Settings()
+
+# MCP Server 注册表 — 所有接入的 MCP 服务统一在此配置
+# 新增服务只需加一个条目，无需改依赖注入代码
+MCP_SERVERS = {
+    "baidu_search": {
+        "transport": "streamable_http",
+        "url": "https://mcpmarket.cn/mcp/64612cf63726bbdfb5a2e0c9",
+    },
+}

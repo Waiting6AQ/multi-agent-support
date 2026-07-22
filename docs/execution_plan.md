@@ -53,6 +53,7 @@
 - [x] intent_classifier 新增 web_search 意图
 - [x] agent_service 加节点 + 路由
 - [x] web_search 跳过质量检查
+- [x] **Phase 13 改造**：`create_search_llm()` 废弃，替换为 MCP 百度搜索；节点改为 async
 
 ## Phase 11: 前台接待 Agent（Coordinator 模式） ✅
 - [x] `agents/receptionist.py`（ReceptionistAgent + JSON Mode）
@@ -68,3 +69,14 @@
 - [x] State 字段跨轮污染修复
 - [x] delete_history() checkpoints 清理
 - [x] 5 个 Agent × 12 个场景全通过
+
+## Phase 13: MCP + Agent Skills 改造 ✅
+- [x] 联网搜索接入百度搜索 MCP（mcpmarket.cn，免费替代百炼内置搜索）
+- [x] `utils/llm.py` 删除废弃的 create_search_llm()
+- [x] `core/dependencies.py` 新增 MCP 客户端 + _get_mcp_tools()
+- [x] `core/config.py` 新增 MCP_SERVERS 注册表 + SKILLS_DIR
+- [x] `agents/web_search.py` 改为 async，使用 agent.astream()
+- [x] `agents/tech_support.py` 改为 Deep Agents（create_deep_agent + SkillsMiddleware）
+- [x] 新建 `skills/tech_support/troubleshooting/SKILL.md`
+- [x] `services/agent_service.py` _node_web_search + _node_tech_support 改为 async
+- [x] 验证：FAQ 命中 → 不加载 Skill；FAQ 未命中 → 加载 Skill 排查流程

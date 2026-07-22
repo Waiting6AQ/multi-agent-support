@@ -159,14 +159,14 @@ class AgentService:
             return intent
         return "respond"
 
-    def _node_tech_support(self, state: AgentState) -> dict:
-        """节点2a：技术支持 Agent 处理（流式逐 token）"""
+    async def _node_tech_support(self, state: AgentState) -> dict:
+        """节点2a：技术支持 Agent 处理（async — Deep Agent 使用 astream）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "技术支持工程师正在处理..."})
 
         recent = state["messages"][-11:]  # 保留 5 个完整轮次 + 当前问题，防止多轮历史过长
         reply = ""
-        for token in self.tech_agent.handle_stream(recent):
+        async for token in self.tech_agent.handle_stream(recent):
             reply += token
             writer(token)
         return {
@@ -205,14 +205,14 @@ class AgentService:
             "needs_escalation": False,  # 每轮重置，防止上一轮的转人工标记残留
         }
 
-    def _node_web_search(self, state: AgentState) -> dict:
-        """节点2d：联网搜索 Agent 处理（流式逐 token）"""
+    async def _node_web_search(self, state: AgentState) -> dict:
+        """节点2d：联网搜索 Agent 处理（异步 — MCP 工具需要 async 上下文）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "正在联网搜索..."})
 
         recent = state["messages"][-11:]
         reply = ""
-        for token in self.web_agent.handle_stream(recent):
+        async for token in self.web_agent.handle_stream(recent):
             reply += token
             writer(token)
         return {

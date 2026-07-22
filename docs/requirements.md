@@ -19,8 +19,9 @@
 - 技术支持 Agent：FAQ 向量检索（ChromaDB）
 - 订单服务 Agent：订单查询、物流跟踪（SQLite）
 - 产品咨询 Agent：产品搜索、预算推荐（SQLite）
-- 联网搜索 Agent：DashScope agent_max 内置搜索，外部品牌/参数/行情
+- 联网搜索 Agent：接入百度搜索 MCP 服务，外部品牌/参数/行情
 - 质量检查 + 人工升级（联网搜索跳过质量检查）
+- Agent Skills：技术支持 FAQ 未命中时，按需加载 Skill 专家排查规范
 
 ### API
 - POST `/api/v1/chat` — 非流式对话
