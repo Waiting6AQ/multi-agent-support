@@ -9,6 +9,9 @@ RUN pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 # 再复制代码
 COPY . .
 
+# 关闭 reload（避免容器内文件变动触发重启死循环）
+ENV DISABLE_RELOAD=true
+
 # 暴露端口
 EXPOSE 8001
 

@@ -16,9 +16,9 @@ class Settings(BaseSettings):
 
     # === DashScope API（阿里云） ===
     DASHSCOPE_API_KEY: str
-    LLM_MODEL_NAME: str = "openai:qwen3-max"
+    LLM_MODEL_NAME: str = "openai:qwen3.7-max-2026-05-20"
     LLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    EMBEDDING_MODEL_NAME: str = "text-embedding-v4"
+    EMBEDDING_MODEL_NAME: str = "qwen3.7-text-embedding"
 
     # === Agent 参数 ===
     TEMPERATURE: float = 0.1
