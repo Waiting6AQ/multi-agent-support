@@ -157,7 +157,13 @@ async def get_web_agent() -> WebSearchAgent:
     """联网搜索 Agent 单例（注入百度搜索 MCP 工具）"""
     global _web_agent
     if _web_agent is None:
-        mcp_tools = await _get_mcp_tools(server_names=["baidu_search"])
+        try:
+            mcp_tools = await _get_mcp_tools(server_names=["baidu_search"])
+        except Exception as e:
+            # MCP 服务启动时不可用：降级为空工具列表，
+            # Agent 按系统提示词告知用户无法搜索，整个管线不崩
+            print(f"⚠️ MCP 工具加载失败，联网搜索降级: {type(e).__name__}: {e}")
+            mcp_tools = []
         _web_agent = WebSearchAgent(llm=get_llm(), tools=mcp_tools)
     return _web_agent
 

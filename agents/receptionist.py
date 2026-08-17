@@ -34,11 +34,21 @@ class ReceptionistAgent:
 
     def classify(self, messages: list) -> dict:
         """一次调用完成意图分类 + 回复生成，返回 {intent, reply, confidence, reason}"""
-        result = self.llm.invoke(messages)
-        data = json.loads(result.content)
-        return {
-            "intent": data.get("intent", "escalate"),
-            "reply": data.get("reply", ""),
-            "confidence": data.get("confidence", 0.5),
-            "reason": data.get("reason", ""),
-        }
+        try:
+            result = self.llm.invoke(messages)
+            data = json.loads(result.content)
+            return {
+                "intent": data.get("intent", "escalate"),
+                "reply": data.get("reply", ""),
+                "confidence": data.get("confidence", 0.5),
+                "reason": data.get("reason", ""),
+            }
+        except Exception as e:
+            # LLM 调用失败或 JSON 解析失败：降级为转人工，管线不崩
+            print(f"⚠️ 接待员分类异常: {type(e).__name__}: {e}")
+            return {
+                "intent": "escalate",
+                "reply": "抱歉，客服系统暂时繁忙，请稍后再试或联系人工客服。",
+                "confidence": 0.0,
+                "reason": f"分类失败降级: {type(e).__name__}",
+            }

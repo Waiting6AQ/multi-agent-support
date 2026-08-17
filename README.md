@@ -11,6 +11,7 @@
 - **质量监控**：LLM 四维度评估回复质量，低分自动升级人工（联网搜索结果跳过质量检查）
 - **多轮对话**：AsyncSqliteSaver 持久化 + `add_messages` 自动管理，上下文截断防止无限增长
 - **Token 级流式输出**：SSE 格式，实时意图反馈 + 打字机效果 + 质量评分
+- **容错与降级**：LLM 网络/限流自动重试 + 备用模型切换，MCP 服务启动/运行时两层降级，各 Agent 独立异常兜底，接待员失败自动转人工，质量评估失败降中性分
 - **客服风格 UI**：紫色渐变界面、气泡动画、意图标签、转人工横幅、快速体验按钮
 
 ## 技术栈
@@ -20,11 +21,11 @@
 | Web 框架   | FastAPI + Uvicorn                                                         |
 | LLM 编排   | LangGraph StateGraph（7 节点管线）                                        |
 | Agent 创建 | `create_agent`（工具型 Agent）+ `create_deep_agent`（Skill Agent）+ JSON Mode（接待员） |
-| LLM        | 通义千问 Qwen3-Max (DashScope)                                            |
+| LLM        | 通义千问 `qwen3.7-max`（DashScope），备用模型自动切换                    |
 | JSON Mode  | DashScope `response_format={"type": "json_object"}`                       |
-| 联网搜索   | MCP (mcpmarket.cn 百度搜索)                                               |
+| 联网搜索   | MCP (mcpmarket.cn 百度搜索)，启动/运行时两层降级                          |
 | Agent Skill | Deep Agents SkillsMiddleware + FilesystemBackend，渐进式披露              |
-| Embeddings | DashScope `text-embedding-v4`                                             |
+| Embeddings | DashScope `qwen3.7-text-embedding`                                        |
 | 向量存储   | ChromaDB 本地持久化（FAQ）                                                |
 | 关系数据库 | SQLite（订单、产品、对话元数据）                                          |
 | 对话持久化 | LangGraph AsyncSqliteSaver                                                |

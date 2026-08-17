@@ -41,9 +41,14 @@ class QualityChecker:
     def check(self, user_message: str, agent_response: str) -> dict[str, Any]:
         """检查回复质量，返回 {total_score, needs_escalation, reason}"""
         chain = self.QUALITY_PROMPT | self.llm | StrOutputParser()
-        result = chain.invoke({
-            "user_message": user_message,
-            "agent_response": agent_response,
-        })
         default = {"total_score": 60, "needs_escalation": False, "reason": "评估完成"}
-        return safe_parse_json(result, default)
+        try:
+            result = chain.invoke({
+                "user_message": user_message,
+                "agent_response": agent_response,
+            })
+            return safe_parse_json(result, default)
+        except Exception as e:
+            # 质量评估失败时给出中性分，不影响主回复流程
+            print(f"⚠️ 质量评估异常: {type(e).__name__}: {e}")
+            return {"total_score": 60, "needs_escalation": False, "reason": f"评估失败降级: {type(e).__name__}"}

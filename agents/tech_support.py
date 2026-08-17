@@ -49,22 +49,28 @@ class TechSupportAgent:
 
     async def handle(self, messages: list) -> str:
         """处理技术支持请求，返回完整回复"""
-        result = await self.agent.ainvoke({"messages": messages})
-        if result["messages"]:
-            return result["messages"][-1].content
-        return "抱歉，技术支持服务暂时不可用。请拨打客服热线 400-xxx-xxxx 获取帮助。"
+        try:
+            result = await self.agent.ainvoke({"messages": messages})
+            if result["messages"]:
+                return result["messages"][-1].content
+        except Exception as e:
+            print(f"⚠️ 技术支持 Agent 异常: {type(e).__name__}: {e}")
+        return "抱歉，技术支持服务暂时不可用。请稍后重试，或拨打客服热线 400-xxx-xxxx 获取帮助。"
 
     async def handle_stream(self, messages: list):
         """流式处理（async — Deep Agent 使用 astream）"""
         had_content = False
-        async for chunk in self.agent.astream(
-            {"messages": messages},
-            stream_mode="messages",
-        ):
-            if isinstance(chunk, tuple) and len(chunk) == 2:
-                msg = chunk[0]
-                if hasattr(msg, "content") and msg.content:
-                    had_content = True
-                    yield msg.content
+        try:
+            async for chunk in self.agent.astream(
+                {"messages": messages},
+                stream_mode="messages",
+            ):
+                if isinstance(chunk, tuple) and len(chunk) == 2:
+                    msg = chunk[0]
+                    if hasattr(msg, "content") and msg.content:
+                        had_content = True
+                        yield msg.content
+        except Exception as e:
+            print(f"⚠️ 技术支持 Agent 异常: {type(e).__name__}: {e}")
         if not had_content:
-            yield "抱歉，技术支持服务暂时不可用。请拨打客服热线 400-xxx-xxxx 获取帮助。"
+            yield "抱歉，技术支持服务暂时不可用。请稍后重试，或拨打客服热线 400-xxx-xxxx 获取帮助。"
