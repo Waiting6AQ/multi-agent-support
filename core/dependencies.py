@@ -11,7 +11,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_chroma import Chroma
 
 from core.config import settings, MCP_SERVERS
-from utils.llm import create_llm, create_json_llm
+from utils.llm import create_llm, create_json_llm, create_raw_llm
 from utils.embeddings import AliyunEmbeddings
 from services.quality_checker import QualityChecker
 from services.conversation_service import ConversationService
@@ -109,7 +109,9 @@ def get_tech_agent() -> TechSupportAgent:
     global _tech_agent
     if _tech_agent is None:
         _tech_agent = TechSupportAgent(
-            llm=get_llm(),
+            # create_deep_agent 不兼容 with_retry 包装对象，
+            # 用原始模型实例，重试由 Deep Agents 内置机制处理
+            llm=create_raw_llm(),
             chroma_store=get_chroma_for_faq(),
         )
     return _tech_agent
@@ -120,7 +122,8 @@ def get_order_agent() -> OrderServiceAgent:
     global _order_agent
     if _order_agent is None:
         _order_agent = OrderServiceAgent(
-            llm=get_llm(),
+            # Agent 框架需要模型支持 bind_tools，retry 包装对象不支持
+            llm=create_raw_llm(),
             db_path=settings.APP_DB_PATH,
         )
     return _order_agent
@@ -131,7 +134,7 @@ def get_product_agent() -> ProductConsultAgent:
     global _product_agent
     if _product_agent is None:
         _product_agent = ProductConsultAgent(
-            llm=get_llm(),
+            llm=create_raw_llm(),
             db_path=settings.APP_DB_PATH,
         )
     return _product_agent
@@ -164,7 +167,7 @@ async def get_web_agent() -> WebSearchAgent:
             # Agent 按系统提示词告知用户无法搜索，整个管线不崩
             print(f"⚠️ MCP 工具加载失败，联网搜索降级: {type(e).__name__}: {e}")
             mcp_tools = []
-        _web_agent = WebSearchAgent(llm=get_llm(), tools=mcp_tools)
+        _web_agent = WebSearchAgent(llm=create_raw_llm(), tools=mcp_tools)
     return _web_agent
 
 

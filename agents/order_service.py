@@ -7,6 +7,7 @@ import json
 import sqlite3
 from langchain_core.tools import tool
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelRetryMiddleware
 
 
 class OrderServiceAgent:
@@ -61,6 +62,9 @@ class OrderServiceAgent:
             model=self.llm,
             tools=[query_order, track_shipping],
             system_prompt=self.SYSTEM_PROMPT,
+            middleware=[
+                ModelRetryMiddleware(max_retries=3, backoff_factor=2.0, initial_delay=1.0),
+            ],
         )
 
     def handle(self, messages: list) -> str:

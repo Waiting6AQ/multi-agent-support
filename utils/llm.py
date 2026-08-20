@@ -45,6 +45,23 @@ def create_llm(temperature: float | None = None):
     return _with_fallback(_with_retry(model), temperature)
 
 
+def create_raw_llm(temperature: float | None = None):
+    """创建不带 retry/fallback 包装的原始模型实例
+
+    用于 create_agent / create_deep_agent：Agent 框架的 model 参数
+    要求 BaseChatModel（需要 bind_tools），with_retry 包装的
+    RunnableRetry 类型不兼容。Agent 场景的重试改用
+    ModelRetryMiddleware 中间件，在框架内部包装模型调用。
+    """
+    return init_chat_model(
+        settings.LLM_MODEL_NAME,
+        api_key=settings.DASHSCOPE_API_KEY,
+        base_url=settings.LLM_BASE_URL,
+        temperature=temperature if temperature is not None else settings.TEMPERATURE,
+        max_tokens=settings.MAX_TOKENS,
+    )
+
+
 def create_json_llm():
     """创建 JSON Mode 的 LLM 实例（用于 Coordinator，保证输出为合法 JSON）"""
     model = init_chat_model(

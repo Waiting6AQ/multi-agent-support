@@ -7,6 +7,7 @@
 使用 Deep Agents 框架的 SkillsMiddleware 实现渐进式披露。
 """
 from langchain_core.tools import tool
+from langchain.agents.middleware import ModelRetryMiddleware
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from core.config import settings
@@ -45,6 +46,9 @@ class TechSupportAgent:
             backend=FilesystemBackend(root_dir=AGENT_SKILLS_DIR, virtual_mode=True),
             skills=[AGENT_SKILLS_DIR],
             system_prompt=self.SYSTEM_PROMPT,
+            middleware=[
+                ModelRetryMiddleware(max_retries=3, backoff_factor=2.0, initial_delay=1.0),
+            ],
         )
 
     async def handle(self, messages: list) -> str:

@@ -7,6 +7,7 @@ Agent 运行时动态发现 baidu_web_search 工具，自主决定是否调用�
 MCP 工具是纯异步的，因此 Agent 使用 astream/ainvoke。
 """
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelRetryMiddleware
 
 
 class WebSearchAgent:
@@ -31,6 +32,9 @@ class WebSearchAgent:
             model=llm,
             tools=tools,
             system_prompt=self.SYSTEM_PROMPT,
+            middleware=[
+                ModelRetryMiddleware(max_retries=3, backoff_factor=2.0, initial_delay=1.0),
+            ],
         )
 
     async def handle(self, messages: list) -> str:
