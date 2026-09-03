@@ -11,7 +11,7 @@
 - **SSE 流式透传**：Spring 用 `StreamingResponseBody` + `RestClient` 对引擎 SSE 流做逐行原样透传（只劫持 done 事件附加 session_id），前端逐 token 渲染打字机效果 + 实时意图反馈
 - **意图标签留存**：每轮回复的意图分类业务侧落库，可审计可统计（引擎侧不保留历史意图）
 - **容错降级**：AI 服务超时/不可达返回友好提示而非 500；客户端断连静默处理；全局异常统一 `Result` 结构
-- **多 Agent 引擎能力**（详见 `agent_engine/README.md`）：LangGraph 编排 5 个专科 Agent，FAQ 向量检索、订单/产品查询、联网搜索、质量评估自动转人工
+- **AI 引擎完整能力**：多 Agent 编排（意图路由 + 专科 Agent + 质量评估），见下方「AI 引擎核心链路」（引擎内部细节见 `agent_engine/README.md`）
 
 ## 技术栈
 
@@ -51,6 +51,18 @@ Spring Boot 业务后端 (:8082)
     ▼
 SQLite + ChromaDB（checkpoint 多轮上下文 / FAQ 向量索引）
 ```
+
+## AI 引擎核心链路（agent_engine）
+
+Coordinator 模式编排：`前台接待 → 条件路由 → 专科 Agent → 质量评估 → 兜底`
+
+- **前台接待（Coordinator）**：JSON Mode 一次调用完成意图分类 + 自然语言回复；闲聊/转人工直接答复，业务意图路由给专科 Agent
+- **专科 Agent 各司其职**：技术支持 = FAQ 向量检索 + Agent Skills 排查流程兜底；订单/产品 = SQLite 结构化精确查询；联网搜索 = 百度搜索 MCP（启动/运行时两层降级）
+- **质量评估**：LLM 四维度打分（相关性/完整性/专业性/有用性），低分自动转人工（前端横幅提示）
+- **多轮对话**：checkpoint 持久化 + 上下文自动截断，重启不丢会话
+- **流式输出**：SSE 实时推送意图 → 逐 token 打字机 → 完成（意图随流即时展示）
+
+引擎完整设计细节见 [agent_engine/README.md](agent_engine/README.md)。
 
 ## 快速开始
 
@@ -108,6 +120,25 @@ npm run dev
 | DELETE | /api/sessions/{id}  | 删除会话（级联删消息）          |
 | POST   | /api/chat           | 聊天（非流式，落库）            |
 | POST   | /api/chat/stream    | 聊天（SSE 流式，打字机效果）    |
+
+## Docker 部署（可选）
+
+一条命令启动完整系统（MySQL + 引擎 + Java 后端 + 前端），无需本地安装 Python/Node/JDK：
+
+```powershell
+# 1. 配置：根目录 .env（已 gitignore），复制模板填入真实值
+Copy-Item .env.example .env    # 填 DB_PASSWORD（容器内 MySQL，随便设）+ DASHSCOPE_API_KEY
+
+# 2. 构建并启动（首次约 10-20 分钟；之后直接 up -d 秒起）
+docker compose up -d --build
+docker compose logs -f backend    # 看到"已创建默认管理员账号 admin"即就绪
+```
+
+访问 `http://localhost:8080`（nginx 托管前端 + 代理 /api，无跨域）；后端 API 也可直连 `http://localhost:8082`。
+
+- **架构落地**：mysql/engine 不暴露宿主端口（"Python 不出内网"在部署层生效），容器间用服务名互访
+- **数据**：账号/会话/消息在 mysql 卷（`down` 保留、`down -v` 清空）；引擎容器内的数据随容器删除（`stop` 保留、`down` 清除）
+- **结束**：`docker compose stop`（保留现场，下次秒开）或 `docker compose down`
 
 ## License
 
