@@ -4,9 +4,6 @@ import com.agentadmin.common.BusinessException;
 import com.agentadmin.dto.AiChatResponse;
 import com.agentadmin.dto.ChatRequest;
 import com.agentadmin.dto.ChatResponse;
-import com.agentadmin.mapper.ChatMessageMapper;
-import com.agentadmin.mapper.ChatSessionMapper;
-import com.agentadmin.model.ChatMessage;
 import com.agentadmin.model.ChatSession;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -40,11 +37,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ChatService {
 
-    private static final String DEFAULT_TITLE = "新会话";
-
     private final SessionService sessionService;
-    private final ChatSessionMapper sessionMapper;
-    private final ChatMessageMapper messageMapper;
+    private final ChatRecordService recordService;
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
@@ -58,14 +52,8 @@ public class ChatService {
         // 2. 转发 AI 服务（超时/降级在方法内处理）
         AiChatResponse ai = callAiService(userId, session, req.getMessage());
 
-        // 3. 落库：用户消息 + AI 回答（带意图标签，管理后台审计用）
-        saveMessage(session.getId(), "user", req.getMessage(), null);
-        saveMessage(session.getId(), "assistant", ai.getReply(), ai.getIntent());
-
-        // 4. 标题更新：对齐 Python 侧 message[:80]，仅首次
-        if (DEFAULT_TITLE.equals(session.getTitle())) {
-            sessionMapper.updateTitle(session.getId(), truncate(req.getMessage()));
-        }
+        // 3. 事务落库：用户消息 + AI 回答（带意图标签）+ 标题更新（ChatRecordService，原子性）
+        recordService.saveExchange(session, req.getMessage(), ai.getReply(), ai.getIntent());
 
         return new ChatResponse(
                 session.getId(),
@@ -142,8 +130,8 @@ public class ChatService {
             writeError(outputStream);
             return;
         }
-        // 流正常结束：落库（user + assistant 消息 + 标题更新）
-        persistExchange(session, userMsg, fullReply.toString(), intent);
+        // 流正常结束：事务落库（user + assistant 消息 + 意图标签 + 标题更新）
+        recordService.saveExchange(session, userMsg, fullReply.toString(), intent);
     }
 
     /** 逐行透传，返回 intent（intent 事件里旁路提取，早于 done 更可靠）；token 旁路拼进 fullReply */
@@ -212,25 +200,4 @@ public class ChatService {
         }
     }
 
-    /** 落库：用户消息 + AI 完整回复（带 intent）+ 标题更新 */
-    private void persistExchange(ChatSession session, String userMsg, String reply, String intent) {
-        saveMessage(session.getId(), "user", userMsg, null);
-        saveMessage(session.getId(), "assistant", reply, intent);
-        if (DEFAULT_TITLE.equals(session.getTitle())) {
-            sessionMapper.updateTitle(session.getId(), truncate(userMsg));
-        }
-    }
-
-    private void saveMessage(Long sessionId, String role, String content, String intent) {
-        ChatMessage msg = new ChatMessage();
-        msg.setSessionId(sessionId);
-        msg.setRole(role);
-        msg.setContent(content);
-        msg.setIntent(intent);
-        messageMapper.insert(msg);
-    }
-
-    private String truncate(String s) {
-        return s.length() > 80 ? s.substring(0, 80) : s;
-    }
 }
