@@ -4,10 +4,10 @@
 
 ## 特性
 
-- **Java 业务系统 + Python AI 微服务**：Java 网关统一对外（鉴权/审计/转发），Python 引擎作为内部能力层通过 HTTP 集成
+- **Java 业务系统 + Python AI 服务（服务化架构）**：Java 网关统一对外（鉴权/审计/转发），Python 引擎作为独立部署的内部能力层，通过 HTTP 契约集成
 - **JWT 无状态认证**：jjwt 签发/校验 + BCrypt 密码哈希，简化 RBAC（user/role 两张表），拦截器统一鉴权
 - **会话归属隔离**：业务侧自持会话记录（chat_session + chat_message），用户只能看到自己的会话，列表/详情/删除/聊天全链路校验
-- **AI 服务无状态**：对话归属（user_id ↔ conversation_id）在业务侧 MySQL，AI 侧 checkpoint 只管多轮上下文；转发时网关注入 `X-User-Id` 可信头，预留数据隔离/审计
+- **用户归属在业务侧，AI 引擎不感知用户**：user_id ↔ conversation_id 映射存于业务 MySQL；引擎仅按 conversation_id 维护多轮上下文（checkpoint，会话级状态，无用户体系）；转发时网关注入 `X-User-Id` 可信头，预留数据隔离/审计
 - **SSE 流式透传**：Spring 用 `StreamingResponseBody` + `RestClient` 对引擎 SSE 流做逐行原样透传（只劫持 done 事件附加 session_id），前端逐 token 渲染打字机效果 + 实时意图反馈
 - **意图标签留存**：每轮回复的意图分类业务侧落库，可审计可统计（引擎侧不保留历史意图）
 - **容错降级**：AI 服务超时/不可达返回友好提示而非 500；客户端断连静默处理；全局异常统一 `Result` 结构
