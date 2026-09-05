@@ -137,7 +137,7 @@ docker compose logs -f backend    # 看到"已创建默认管理员账号 admin"
 访问 `http://localhost:8080`（nginx 托管前端 + 代理 /api，无跨域）；后端 API 也可直连 `http://localhost:8082`。
 
 - **架构落地**：mysql/engine 不暴露宿主端口（"Python 不出内网"在部署层生效），容器间用服务名互访
-- **数据**：账号/会话/消息在 mysql 卷（`down` 保留、`down -v` 清空）；引擎容器内的数据随容器删除（`stop` 保留、`down` 清除）
+- **数据**：账号/会话/消息在 mysql 卷；引擎的 FAQ 向量库/SQLite 在 engine-data 卷——`down` 全部保留，`down -v` 才清空
 - **结束**：`docker compose stop`（保留现场，下次秒开）或 `docker compose down`
 
 ## License

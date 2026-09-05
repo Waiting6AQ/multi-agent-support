@@ -19,6 +19,9 @@ services:
     build: ./agent_engine
     environment:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?请在 .env 设置 DASHSCOPE_API_KEY}
+    # 数据卷：FAQ 向量库/订单产品 SQLite/checkpoint 跨容器保留（重建不用重新种子/丢失对话状态）
+    volumes:
+      - engine-data:/app/data
     # 不暴露端口：内网服务，只有 backend 能访问（"Python 不出内网"在部署层落地）
     restart: unless-stopped
 
@@ -48,3 +51,4 @@ services:
 
 volumes:
   mysql-data:
+  engine-data:
