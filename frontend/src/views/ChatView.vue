@@ -109,7 +109,7 @@ function newChat() {
   currentSessionId.value = null
   messages.value = [{
     role: 'assistant',
-    content: '你好！我是智能客服助手 👋\n\n直接告诉我你的问题，我会自动转接给最合适的 Agent 为你服务～',
+    content: '你好！我是智能客服助手 👋\n\n💬 **前台接待** — 问候闲聊、识别意图并自动转接\n🔧 **技术支持** — 故障排除、使用帮助\n📦 **订单专员** — 订单查询、物流跟踪\n🛍️ **产品顾问** — 商品推荐、价格查询\n🌐 **联网搜索** — 商品参数、行情查询\n\n直接告诉我你的问题，我来帮你处理～',
   }]
   status.value = '已连接 · 5 个 Agent 就绪'
   agentName.value = ''
