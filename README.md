@@ -27,11 +27,11 @@
 agent_system/
 ├── agent_engine/    Python 多 Agent 客服引擎（AI 能力层，:8001）
 ├── backend/         Spring Boot 业务后端（:8082）
-│   ├── db/init.sql          建库脚本（可选，默认自动建库）
-│   └── src/main/resources/
-│       ├── schema.sql       建表脚本（启动自动执行，utf8mb4）
-│       └── mapper/*.xml     复杂 SQL（分页查询）
-└── frontend/        Vue 3 前端（:5173，开发代理到 :8082）
+│   └── src/main/resources/schema.sql   建表脚本（启动自动执行）
+├── frontend/        Vue 3 前端（:5173，开发代理到 :8082）
+├── docker-compose.yml       本地开发编排（build 本地构建）
+├── docker-compose.prod.yml  生产部署编排（拉取仓库镜像，见「Docker 部署」）
+└── .env.example             环境变量模板（真实 .env 不入库）
 ```
 
 ## 系统架构
@@ -63,6 +63,10 @@ Coordinator 模式编排：`前台接待 → 条件路由 → 专科 Agent → �
 - **流式输出**：SSE 实时推送意图 → 逐 token 打字机 → 完成（意图随流即时展示）
 
 引擎完整设计细节见 [agent_engine/README.md](agent_engine/README.md)。
+
+## 界面预览
+
+![多 Agent 智能客服界面](docs/screenshots/agent-chat.png)
 
 ## 快速开始
 
@@ -139,6 +143,24 @@ docker compose logs -f backend    # 看到"已创建默认管理员账号 admin"
 - **架构落地**：mysql/engine 不暴露宿主端口（"Python 不出内网"在部署层生效），容器间用服务名互访
 - **数据**：账号/会话/消息在 mysql 卷；引擎的 FAQ 向量库/SQLite 在 engine-data 卷——`down` 全部保留，`down -v` 才清空
 - **结束**：`docker compose stop`（保留现场，下次秒开）或 `docker compose down`
+
+### 镜像化部署（服务器）
+
+完整走过"本地构建 → 推镜像仓库 → 服务器拉取运行"的发布流程（已在阿里云 ECS 实际部署验证）：
+
+```powershell
+# 1. 本地构建镜像
+docker compose build
+# 2. 打标签并推送到镜像仓库（示例为阿里云 ACR，替换为自己的仓库地址）
+docker tag agent_system-backend:latest crpi-<实例id>.aliyuncs.com/<命名空间>/agent-backend:latest
+docker push crpi-<实例id>.aliyuncs.com/<命名空间>/agent-backend:latest
+# 3. 服务器：放置 docker-compose.prod.yml + .env（密钥）后
+docker compose -f docker-compose.prod.yml up -d   # 自动拉取镜像并启动
+```
+
+与本地版 `docker-compose.yml` 的差异：`build` → `image`（服务器无需源码即可部署）；backend 不暴露宿主端口（对外只有前端一个口）；所有服务 `restart: unless-stopped`；镜像地址可用 `.env` 的 `REGISTRY` 变量覆盖（服务器与仓库同地域时走内网拉取更快）。
+
+> 安全提示：默认账号 `admin/admin123` 与 JWT_SECRET 兜底值仅用于本地/演示环境；公网暴露前必须在服务器 `.env` 设置强 `JWT_SECRET` 并修改管理员密码。`.env` 含密钥，切勿提交到仓库或上传公开位置。
 
 ## License
 
