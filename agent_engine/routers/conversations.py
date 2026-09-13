@@ -4,6 +4,7 @@
 提供对话列表、详情查看、删除功能。
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from core.dependencies import get_conversation_service, get_agent_service
 from models.conversation import (
     ConversationListResponse,
@@ -22,11 +23,12 @@ router = APIRouter()
     response_model=ConversationListResponse,
     summary="列出所有对话",
 )
-async def list_conversations(
+def list_conversations(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     service: ConversationService = Depends(get_conversation_service),
 ) -> ConversationListResponse:
+    # 纯同步实现（SQLite 查询）：写 def 由 FastAPI 放入线程池执行，避免阻塞事件循环
     return service.list_conversations(limit=limit, offset=offset)
 
 
@@ -40,7 +42,8 @@ async def get_conversation(
     conv: ConversationService = Depends(get_conversation_service),
     agent: AgentService = Depends(get_agent_service),
 ) -> ConversationDetailResponse:
-    detail = conv.get_conversation(conversation_id)
+    # 同步的 SQLite 读取移出事件循环（run_in_threadpool 期间事件循环可服务其他请求）
+    detail = await run_in_threadpool(conv.get_conversation, conversation_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="对话不存在")
 
@@ -74,7 +77,9 @@ async def delete_conversation(
     service: ConversationService = Depends(get_conversation_service),
     agent: AgentService = Depends(get_agent_service),
 ) -> ConversationDeleteResponse:
-    if not service.delete(conversation_id):
+    # 同步的 SQLite 删除移出事件循环
+    if not await run_in_threadpool(service.delete, conversation_id):
         raise HTTPException(status_code=404, detail="对话不存在")
+    # 同时删除 checkpoints.db 中的对话数据（真异步，原样保留）
     await agent.delete_history(conversation_id)
     return ConversationDeleteResponse(conversation_id=conversation_id)
