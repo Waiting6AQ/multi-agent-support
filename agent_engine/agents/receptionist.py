@@ -32,10 +32,10 @@ class ReceptionistAgent:
     def __init__(self, json_llm):
         self.llm = json_llm  # JSON Mode 的 LLM 实例
 
-    def classify(self, messages: list) -> dict:
-        """一次调用完成意图分类 + 回复生成，返回 {intent, reply, confidence, reason}"""
+    async def classify(self, messages: list) -> dict:
+        """一次调用完成意图分类 + 回复生成，返回 {intent, reply, confidence, reason}（async — LLM 异步调用）"""
         try:
-            result = self.llm.invoke(messages)
+            result = await self.llm.ainvoke(messages)
             data = json.loads(result.content)
             return {
                 "intent": data.get("intent", "escalate"),

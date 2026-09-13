@@ -38,12 +38,12 @@ class QualityChecker:
     def __init__(self, llm):
         self.llm = llm
 
-    def check(self, user_message: str, agent_response: str) -> dict[str, Any]:
-        """检查回复质量，返回 {total_score, needs_escalation, reason}"""
+    async def check(self, user_message: str, agent_response: str) -> dict[str, Any]:
+        """检查回复质量，返回 {total_score, needs_escalation, reason}（async — LLM 异步调用）"""
         chain = self.QUALITY_PROMPT | self.llm | StrOutputParser()
         default = {"total_score": 60, "needs_escalation": False, "reason": "评估完成"}
         try:
-            result = chain.invoke({
+            result = await chain.ainvoke({
                 "user_message": user_message,
                 "agent_response": agent_response,
             })

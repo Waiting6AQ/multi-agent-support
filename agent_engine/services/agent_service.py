@@ -107,8 +107,8 @@ class AgentService:
 
     # ==================== 节点函数 ====================
 
-    def _node_receptionist(self, state: AgentState) -> dict:
-        """节点1：前台接待 — 意图分类 + 闲聊/转人工时直接生成回复"""
+    async def _node_receptionist(self, state: AgentState) -> dict:
+        """节点1：前台接待 — 意图分类 + 闲聊/转人工时直接生成回复（async — LLM 异步调用）"""
         user_msg = state["messages"][-1].content
         writer = get_stream_writer()
         writer({"event": "progress", "data": "前台接待中..."})
@@ -121,7 +121,7 @@ class AgentService:
             prev_ai = state["messages"][-2]  # 上一条是 AIMessage
             messages.append({"role": "assistant", "content": prev_ai.content})
         messages.append({"role": "user", "content": user_msg})
-        result = self.receptionist.classify(messages)
+        result = await self.receptionist.classify(messages)
         intent = result["intent"]
         confidence = result["confidence"]
         reply = result["reply"]
@@ -174,14 +174,14 @@ class AgentService:
             "messages": [AIMessage(content=reply)],
         }
 
-    def _node_order_service(self, state: AgentState) -> dict:
-        """节点2b：订单服务 Agent 处理（流式逐 token）"""
+    async def _node_order_service(self, state: AgentState) -> dict:
+        """节点2b：订单服务 Agent 处理（async — 流式逐 token）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "订单服务专员正在处理..."})
 
         recent = state["messages"][-11:]
         reply = ""
-        for token in self.order_agent.handle_stream(recent):
+        async for token in self.order_agent.handle_stream(recent):
             reply += token
             writer(token)
         return {
@@ -189,14 +189,14 @@ class AgentService:
             "messages": [AIMessage(content=reply)],
         }
 
-    def _node_product_consult(self, state: AgentState) -> dict:
-        """节点2c：产品咨询 Agent 处理（流式逐 token）"""
+    async def _node_product_consult(self, state: AgentState) -> dict:
+        """节点2c：产品咨询 Agent 处理（async — 流式逐 token）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "产品顾问正在处理..."})
 
         recent = state["messages"][-11:]
         reply = ""
-        for token in self.product_agent.handle_stream(recent):
+        async for token in self.product_agent.handle_stream(recent):
             reply += token
             writer(token)
         return {
@@ -222,14 +222,14 @@ class AgentService:
             "quality_score": 0.0,
         }
 
-    def _node_quality_check(self, state: AgentState) -> dict:
-        """节点4：评估 Agent 回复质量"""
+    async def _node_quality_check(self, state: AgentState) -> dict:
+        """节点4：评估 Agent 回复质量（async — LLM 异步调用）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "正在检查回复质量..."})
 
         # messages[-1] 是 Agent 刚追加的 AIMessage，-2 才是用户消息
         user_msg = state["messages"][-2].content
-        result = self.quality_checker.check(
+        result = await self.quality_checker.check(
             user_msg, state["agent_response"]
         )
         total_score = result.get("total_score", 60)

@@ -83,21 +83,21 @@ class ProductConsultAgent:
             ],
         )
 
-    def handle(self, messages: list) -> str:
+    async def handle(self, messages: list) -> str:
         """处理产品咨询请求，返回完整回复"""
         try:
-            result = self.agent.invoke({"messages": messages})
+            result = await self.agent.ainvoke({"messages": messages})
             if result["messages"]:
                 return result["messages"][-1].content
         except Exception as e:
             print(f"⚠️ 产品咨询 Agent 异常: {type(e).__name__}: {e}")
         return "抱歉，产品咨询服务暂时不可用。请稍后再试或联系人工客服。"
 
-    def handle_stream(self, messages: list):
+    async def handle_stream(self, messages: list):
         """流式处理，逐 token 返回（用于 SSE 打字机效果）"""
         had_content = False
         try:
-            for chunk in self.agent.stream(
+            async for chunk in self.agent.astream(
                 {"messages": messages},
                 stream_mode="messages",
             ):

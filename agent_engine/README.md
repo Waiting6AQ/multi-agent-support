@@ -49,7 +49,6 @@ multi_agent_fastapi/
 │   └── conversations.py        # 对话管理接口（列表/详情/删除）
 ├── services/
 │   ├── agent_service.py        # LangGraph 多 Agent 编排核心
-│   ├── intent_classifier.py    # 原意图分类器（已被 ReceptionistAgent 替代，保留供参考）
 │   ├── quality_checker.py      # 回复质量评估（4 维度打分）
 │   └── conversation_service.py # 对话元数据 CRUD
 ├── agents/
