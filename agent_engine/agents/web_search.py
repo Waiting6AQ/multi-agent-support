@@ -1,9 +1,9 @@
 """
 联网搜索 Agent
 
-通过百度搜索 MCP 服务实现免费联网检索。
-MCP Server: mcpmarket.cn 百度搜索，Streamable HTTP 协议接入。
-Agent 运行时动态发现 baidu_web_search 工具，自主决定是否调用。
+通过百度千帆官方 MCP 服务实现联网检索（每日 50 次免费额度）。
+MCP Server: 千帆 web-search，Streamable HTTP 协议 + Bearer 鉴权接入。
+Agent 运行时动态发现 webSearch 工具，自主决定是否调用。
 MCP 工具是纯异步的，因此 Agent 使用 astream/ainvoke。
 """
 from langchain.agents import create_agent
@@ -16,7 +16,7 @@ class WebSearchAgent:
     SYSTEM_PROMPT = """你是一个商品信息搜索助手。你可以通过百度搜索获取最新的商品信息。
 
 工作规范：
-1. 根据用户的问题，使用 baidu_web_search 工具搜索相关的商品参数、价格行情、市场信息
+1. 根据用户的问题，使用 webSearch 工具搜索相关的商品参数、价格行情、市场信息
 2. 将搜索到的信息整理成清晰、结构化的回复
 3. 如果搜索结果不足以回答用户问题，诚实说明
 4. 涉及购买建议时，提醒用户以官方渠道信息为准

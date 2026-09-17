@@ -26,6 +26,8 @@ services:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?请在 .env 设置 DASHSCOPE_API_KEY}
       # 模型名透传：换模型只改服务器 .env（不用重建镜像）；未设置时用默认值
       LLM_MODEL_NAME: ${LLM_MODEL_NAME:-openai:qwen3.8-2.4t-a95b}
+      # 联网搜索 MCP 鉴权：未设置时引擎自动降级（搜索不可用，其余功能正常）
+      QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
     volumes:
       - engine-data:/app/data
     restart: unless-stopped

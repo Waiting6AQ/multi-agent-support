@@ -23,7 +23,7 @@
 | Agent 创建 | `create_agent`（工具型 Agent）+ `create_deep_agent`（Skill Agent）+ JSON Mode（接待员） |
 | LLM        | 通义千问 `qwen3.7-max`（DashScope），备用模型自动切换                    |
 | JSON Mode  | DashScope `response_format={"type": "json_object"}`                       |
-| 联网搜索   | MCP (mcpmarket.cn 百度搜索)，启动/运行时两层降级                          |
+| 联网搜索   | MCP (百度千帆 web-search 官方服务)，启动/运行时两层降级                          |
 | Agent Skill | Deep Agents SkillsMiddleware + FilesystemBackend，渐进式披露              |
 | Embeddings | DashScope `qwen3.7-text-embedding`                                        |
 | 向量存储   | ChromaDB 本地持久化（FAQ）                                                |

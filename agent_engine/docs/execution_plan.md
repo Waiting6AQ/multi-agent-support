@@ -71,7 +71,7 @@
 - [x] 5 个 Agent × 12 个场景全通过
 
 ## Phase 13: MCP + Agent Skills 改造 ✅
-- [x] 联网搜索接入百度搜索 MCP（mcpmarket.cn，免费替代百炼内置搜索）
+- [x] 联网搜索接入百度搜索 MCP（初版 mcpmarket.cn，后因免费额度取消换为千帆官方 web-search）
 - [x] `utils/llm.py` 删除废弃的 create_search_llm()
 - [x] `core/dependencies.py` 新增 MCP 客户端 + _get_mcp_tools()
 - [x] `core/config.py` 新增 MCP_SERVERS 注册表 + SKILLS_DIR

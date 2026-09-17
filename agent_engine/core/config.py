@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     EMBEDDING_MODEL_NAME: str = "qwen3.7-text-embedding"
 
+    # === 百度千帆 API（联网搜索 MCP 鉴权） ===
+    # 默认空串：未配置时 MCP 连不上走降级，不影响服务启动
+    QIANFAN_API_KEY: str = ""
+
     # === Agent 参数 ===
     TEMPERATURE: float = 0.1
     MAX_TOKENS: int = 2000
@@ -44,9 +48,12 @@ settings = Settings()
 
 # MCP Server 注册表 — 所有接入的 MCP 服务统一在此配置
 # 新增服务只需加一个条目，无需改依赖注入代码
+# 注："baidu_search" 是本地服务别名（仅用于筛选连接哪个服务），不是工具名
 MCP_SERVERS = {
     "baidu_search": {
         "transport": "streamable_http",
-        "url": "https://mcpmarket.cn/mcp/64612cf63726bbdfb5a2e0c9",
+        "url": "https://qianfan.baidubce.com/v2/tools/web-search/mcp",
+        # 千帆官方 MCP 需 Bearer 鉴权；Key 从 .env 读取，不写死在代码里
+        "headers": {"Authorization": f"Bearer {settings.QIANFAN_API_KEY}"},
     },
 }
