@@ -66,41 +66,76 @@ async function submit() {
 
 <style scoped>
 .login-wrap {
-  height: 100vh;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px;
+  /* 紫色渐变从全局 body 挪到这里 —— 聊天页现在是全屏浅色，只有登录页用品牌渐变 */
+  background: var(--primary-gradient);
 }
+
 .login-card {
-  width: 380px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  width: 100%;
+  max-width: 380px;      /* 窄屏也不会溢出 */
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   padding: 40px 36px;
   text-align: center;
 }
-.login-logo {
-  font-size: 44px;
-  margin-bottom: 8px;
-}
-h1 { font-size: 20px; color: #333; }
-.sub { font-size: 12px; color: #a0aec0; margin: 6px 0 24px; }
+
+.login-logo { font-size: 44px; margin-bottom: 8px; }
+h1 { font-size: 20px; color: var(--text-main); font-weight: 700; }
+.sub { font-size: 12px; color: var(--text-muted); margin: 6px 0 24px; }
+
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .tabs button {
-  flex: 1; padding: 8px; border: 1px solid #e2e8f0; border-radius: 8px;
-  background: #fff; color: #667eea; cursor: pointer; font-size: 13px;
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background .15s, color .15s, border-color .15s;
 }
-.tabs button.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border: none; }
+.tabs button:hover { border-color: var(--primary); }
+.tabs button.active { background: var(--primary-gradient); color: #fff; border-color: transparent; }
+
 input {
-  width: 100%; padding: 12px 14px; margin-bottom: 12px;
-  border: 2px solid #e2e8f0; border-radius: 10px; font-size: 14px; outline: none;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-main);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
 }
-input:focus { border-color: #667eea; }
-.error { color: #e53e3e; font-size: 12px; margin-bottom: 10px; }
+input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, .1);
+}
+
+.error { color: var(--danger); font-size: 12px; margin-bottom: 10px; }
+
 .submit {
-  width: 100%; padding: 12px; border: none; border-radius: 10px;
-  background: linear-gradient(135deg, #667eea, #764ba2); color: #fff;
-  font-size: 15px; cursor: pointer;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-gradient);
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity .15s;
 }
+.submit:hover:not(:disabled) { opacity: .92; }
 .submit:disabled { opacity: .5; cursor: not-allowed; }
 </style>
