@@ -6,11 +6,12 @@ async 依赖会自动被 await。
 
 单例模式：通过模块级缓存变量确保昂贵资源只初始化一次。
 """
-import aiosqlite
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_chroma import Chroma
 
 from core.config import settings, MCP_SERVERS
+from core.database import get_session_factory
+# checkpointer 的实现与连接池在 core/postgres.py（这里只做转发，保持依赖注入入口统一）
+from core.postgres import get_checkpointer  # noqa: F401
 from utils.llm import create_llm, create_json_llm, create_raw_llm
 from utils.embeddings import AliyunEmbeddings
 from services.quality_checker import QualityChecker
@@ -28,7 +29,6 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 _embeddings = None
 _llm = None
 _chroma_for_faq = None
-_checkpointer = None
 _json_llm = None
 _receptionist = None
 _quality_checker = None
@@ -67,15 +67,6 @@ def get_chroma_for_faq():
             embedding_function=get_embeddings(),
         )
     return _chroma_for_faq
-
-
-async def get_checkpointer() -> AsyncSqliteSaver:
-    """AsyncSqliteSaver 单例，支持 astream/ainvoke 等异步操作"""
-    global _checkpointer
-    if _checkpointer is None:
-        conn = await aiosqlite.connect(settings.CHECKPOINT_DB_PATH)
-        _checkpointer = AsyncSqliteSaver(conn)
-    return _checkpointer
 
 
 # ==================== 业务组件 ====================
@@ -124,7 +115,7 @@ def get_order_agent() -> OrderServiceAgent:
         _order_agent = OrderServiceAgent(
             # Agent 框架需要模型支持 bind_tools，retry 包装对象不支持
             llm=create_raw_llm(),
-            db_path=settings.APP_DB_PATH,
+            session_factory=get_session_factory(),
         )
     return _order_agent
 
@@ -135,7 +126,7 @@ def get_product_agent() -> ProductConsultAgent:
     if _product_agent is None:
         _product_agent = ProductConsultAgent(
             llm=create_raw_llm(),
-            db_path=settings.APP_DB_PATH,
+            session_factory=get_session_factory(),
         )
     return _product_agent
 
@@ -189,8 +180,8 @@ async def get_agent_service() -> AgentService:
 
 
 def get_conversation_service() -> ConversationService:
-    """对话元数据服务单例"""
+    """对话元数据服务单例（会话工厂由 lifespan 初始化的引擎提供）"""
     global _conversation_service
     if _conversation_service is None:
-        _conversation_service = ConversationService(db_path=settings.APP_DB_PATH)
+        _conversation_service = ConversationService(session_factory=get_session_factory())
     return _conversation_service

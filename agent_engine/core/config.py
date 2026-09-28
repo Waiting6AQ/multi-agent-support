@@ -32,10 +32,15 @@ class Settings(BaseSettings):
     QUALITY_SCORE_THRESHOLD: float = 0.6      # 质量评分低于此值升级人工
     FAQ_TOP_K: int = 3                        # FAQ 向量检索返回数量
 
+    # === PostgreSQL（会话状态 + 业务数据） ===
+    # 必填：不配则启动即报错（fail-fast，与 DASHSCOPE_API_KEY 一致）
+    # 本地开发连 localhost；容器内由 compose 注入服务名 postgres（见 docker-compose.yml）
+    POSTGRES_DSN: str
+    PG_POOL_MIN: int = 2           # psycopg 池下限（LangGraph checkpoint 用）
+    PG_POOL_MAX: int = 10          # psycopg 池上限
+
     # === 存储路径（基于项目根目录） ===
     CHROMA_PERSIST_DIR: str = str(BASE_DIR / "data" / "chroma_db")
-    CHECKPOINT_DB_PATH: str = str(BASE_DIR / "data" / "checkpoints.db")
-    APP_DB_PATH: str = str(BASE_DIR / "data" / "app.db")
     SKILLS_DIR: str = str(BASE_DIR / "skills")
 
     class Config:

@@ -24,27 +24,42 @@ from routers import chat, conversations
 
 # ==================== 初始化数据目录 ====================
 
-for dir_path in [
-    settings.CHROMA_PERSIST_DIR,
-    str(Path(settings.APP_DB_PATH).parent),
-]:
-    os.makedirs(dir_path, exist_ok=True)
+# 只剩 ChromaDB 需要本地目录（会话状态和业务数据都已迁到 PostgreSQL）
+os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
 
 
 # ==================== 启动预加载 ====================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时初始化种子数据（FAQ + 订单/产品模拟数据）"""
+    """启动：初始化 PostgreSQL + 灌种子数据；关闭：释放数据库连接"""
+    # ---- ① PostgreSQL ----
+    # 顺序：先 init_checkpointer（自带重试，会一直等到 PG 就绪），再 init_database 建业务表
+    # checkpointer 必须在事件循环里构造 —— AsyncPostgresSaver.__init__ 会取 running loop
+    from core.database import dispose_engine, get_session_factory, init_database
+    from core.postgres import close_pool, init_checkpointer
+
+    await init_checkpointer()
+    await init_database()
+    print("✅ PostgreSQL 初始化完成（checkpoint 表 + 业务表）")
+
+    # ---- ② 种子数据（FAQ 向量库 + 订单/产品）----
+    # seed_all 是幂等的：已有数据会跳过，重启不会重复灌
     from utils.embeddings import AliyunEmbeddings
     from utils.db_init import seed_all
     embeddings = AliyunEmbeddings(model=settings.EMBEDDING_MODEL_NAME)
-    seed_all(
-        db_path=settings.APP_DB_PATH,
+    await seed_all(
+        session_factory=get_session_factory(),
         chroma_persist_dir=settings.CHROMA_PERSIST_DIR,
         embeddings=embeddings,
     )
+
     yield
+
+    # ---- 关闭：释放连接（顺序与建立时相反）----
+    await dispose_engine()
+    await close_pool()
+    print("👋 PostgreSQL 连接已释放")
 
 
 # ==================== 创建应用 ====================
@@ -89,6 +104,16 @@ async def root():
 # ==================== 启动入口 ====================
 
 if __name__ == "__main__":
+    import sys
     import uvicorn
+
     reload = os.getenv("DISABLE_RELOAD", "").lower() != "true"
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=reload)
+
+    # Windows 必须显式指定事件循环工厂：uvicorn 在 win32 上硬编码用 ProactorEventLoop，
+    # 而 psycopg 的异步模式不支持它。Linux 容器不传，保留 uvicorn 默认（uvloop）。
+    extra = (
+        {"loop": "core.compat:selector_loop_factory"}
+        if sys.platform == "win32"
+        else {}
+    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=reload, **extra)

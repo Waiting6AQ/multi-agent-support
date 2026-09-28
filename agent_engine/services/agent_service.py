@@ -6,7 +6,7 @@
 
 特性：
 - 多 Agent 协作：3 个专业 Agent 各配工具，自动路由
-- 多轮对话：add_messages 自动追加 + AsyncSqliteSaver 持久化
+- 多轮对话：add_messages 自动追加 + AsyncPostgresSaver 持久化
 - 流式输出：SSE 格式，逐阶段返回（意图 → 回复 → 质量评分 → 完成）
 """
 import json
@@ -15,7 +15,7 @@ from typing import TypedDict, Annotated, Any, AsyncGenerator, Literal
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.config import get_stream_writer
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langchain_core.messages import HumanMessage, AIMessage
 
 from core.config import settings
@@ -44,7 +44,7 @@ class AgentService:
         → quality_check → should_escalate → escalate_final / respond → END
     """
 
-    def __init__(self, llm, checkpointer: AsyncSqliteSaver,
+    def __init__(self, llm, checkpointer: AsyncPostgresSaver,
                  receptionist, quality_checker,
                  tech_agent, order_agent, product_agent, web_agent):
         self.llm = llm
@@ -111,7 +111,7 @@ class AgentService:
         """节点1：前台接待 — 意图分类 + 闲聊/转人工时直接生成回复（async — LLM 异步调用）"""
         user_msg = state["messages"][-1].content
         writer = get_stream_writer()
-        writer({"event": "progress", "data": "前台接待中..."})
+        writer({"event": "progress", "data": "前台接待中"})
 
         # 构建消息：system + 上一条 AI 回复（帮助理解用户简短的指代追问） + 当前用户消息
         messages = [
@@ -162,7 +162,7 @@ class AgentService:
     async def _node_tech_support(self, state: AgentState) -> dict:
         """节点2a：技术支持 Agent 处理（async — Deep Agent 使用 astream）"""
         writer = get_stream_writer()
-        writer({"event": "progress", "data": "技术支持工程师正在处理..."})
+        writer({"event": "progress", "data": "技术支持工程师正在处理"})
 
         recent = state["messages"][-11:]  # 保留 5 个完整轮次 + 当前问题，防止多轮历史过长
         reply = ""
@@ -177,7 +177,7 @@ class AgentService:
     async def _node_order_service(self, state: AgentState) -> dict:
         """节点2b：订单服务 Agent 处理（async — 流式逐 token）"""
         writer = get_stream_writer()
-        writer({"event": "progress", "data": "订单服务专员正在处理..."})
+        writer({"event": "progress", "data": "订单服务专员正在处理"})
 
         recent = state["messages"][-11:]
         reply = ""
@@ -192,7 +192,7 @@ class AgentService:
     async def _node_product_consult(self, state: AgentState) -> dict:
         """节点2c：产品咨询 Agent 处理（async — 流式逐 token）"""
         writer = get_stream_writer()
-        writer({"event": "progress", "data": "产品顾问正在处理..."})
+        writer({"event": "progress", "data": "产品顾问正在处理"})
 
         recent = state["messages"][-11:]
         reply = ""
@@ -208,7 +208,7 @@ class AgentService:
     async def _node_web_search(self, state: AgentState) -> dict:
         """节点2d：联网搜索 Agent 处理（异步 — MCP 工具需要 async 上下文）"""
         writer = get_stream_writer()
-        writer({"event": "progress", "data": "正在联网搜索..."})
+        writer({"event": "progress", "data": "正在联网搜索"})
 
         recent = state["messages"][-11:]
         reply = ""
@@ -225,7 +225,7 @@ class AgentService:
     async def _node_quality_check(self, state: AgentState) -> dict:
         """节点4：评估 Agent 回复质量（async — LLM 异步调用）"""
         writer = get_stream_writer()
-        writer({"event": "progress", "data": "正在检查回复质量..."})
+        writer({"event": "progress", "data": "正在检查回复质量"})
 
         # messages[-1] 是 Agent 刚追加的 AIMessage，-2 才是用户消息
         user_msg = state["messages"][-2].content
@@ -283,14 +283,15 @@ class AgentService:
         return []
 
     async def delete_history(self, thread_id: str):
-        """删除对话的 checkpoint 数据，配合 ConversationService 的元数据删除"""
-        await self.checkpointer.conn.execute(
-            "DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,)
-        )
-        await self.checkpointer.conn.execute(
-            "DELETE FROM writes WHERE thread_id = ?", (thread_id,)
-        )
-        await self.checkpointer.conn.commit()
+        """删除该 thread 的全部 checkpoint 数据（配合 ConversationService 的元数据删除）
+
+        用官方 adelete_thread 而非裸 SQL，原因有三：
+        - PG 版 saver.conn 是连接池对象，没有 .execute()
+        - PG 版表名是 checkpoint_blobs / checkpoint_writes（SQLite 叫 writes），
+          blob 还单独拆了一张表——照抄旧 SQL 既会报错、也删不干净
+        - 它一次清三张表，且与 saver 内部锁的并发写是安全的
+        """
+        await self.checkpointer.adelete_thread(thread_id)
 
     async def chat(self, message: str, conversation_id: str | None = None
                    ) -> ChatResponse:
@@ -298,7 +299,7 @@ class AgentService:
         非流式多 Agent 对话
 
         完整执行管线，返回最终结果。
-        AsyncSqliteSaver 自动保存对话状态，同 conversation_id 即可多轮对话。
+        AsyncPostgresSaver 自动保存对话状态，同 conversation_id 即可多轮对话。
         """
         if conversation_id is None:
             conversation_id = str(uuid.uuid4())

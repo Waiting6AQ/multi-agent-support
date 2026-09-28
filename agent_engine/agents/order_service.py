@@ -1,13 +1,33 @@
 """
 订单服务 Agent
 
-负责订单查询、物流跟踪，工具：query_order、track_shipping（SQLite 查询）。
+负责订单查询、物流跟踪，工具：query_order、track_shipping（PostgreSQL ORM 查询）。
 """
 import json
-import sqlite3
+
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from models.tables import Order
+
+
+def _to_dict(order: Order) -> dict:
+    """ORM 对象 → 可 JSON 序列化的 dict
+
+    price 列是 NUMERIC，读出来是 Decimal，json.dumps 不认（会抛 TypeError），转 float。
+    """
+    return {
+        "id": order.id,
+        "product": order.product,
+        "price": float(order.price),
+        "status": order.status,
+        "shipping": order.shipping,
+        "tracking": order.tracking,
+        "estimated_delivery": order.estimated_delivery,
+    }
 
 
 class OrderServiceAgent:
@@ -23,39 +43,35 @@ class OrderServiceAgent:
 
 可用的订单号格式：ORD001、ORD002、ORD003"""
 
-    def __init__(self, llm, db_path: str):
+    def __init__(self, llm, session_factory: async_sessionmaker):
         self.llm = llm
-        self.db_path = db_path
-
-        def _query_db(sql: str, params: tuple) -> dict | None:
-            """查询订单数据，返回字典或 None"""
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            row = conn.execute(sql, params).fetchone()
-            conn.close()
-            return dict(row) if row else None
+        self._session_factory = session_factory
 
         @tool
-        def query_order(order_id: str) -> str:
+        async def query_order(order_id: str) -> str:
             """查询订单信息，order_id 格式如 ORD001、ORD002"""
-            order = _query_db("SELECT * FROM orders WHERE id = ?", (order_id.upper(),))
+            async with self._session_factory() as session:
+                order = await session.get(Order, order_id.upper())
             if order:
-                return json.dumps(order, ensure_ascii=False, indent=2)
+                return json.dumps(_to_dict(order), ensure_ascii=False, indent=2)
             return f"未找到订单 {order_id}，请确认订单号是否正确"
 
         @tool
-        def track_shipping(tracking_number: str) -> str:
+        async def track_shipping(tracking_number: str) -> str:
             """按物流单号查询物流信息，tracking_number 如 SF1234567890"""
-            order = _query_db("SELECT * FROM orders WHERE tracking = ?", (tracking_number,))
+            async with self._session_factory() as session:
+                order = await session.scalar(
+                    select(Order).where(Order.tracking == tracking_number)
+                )
             if not order:
                 return f"未找到物流单号 {tracking_number} 对应的物流信息"
             return json.dumps({
-                "tracking": order["tracking"],
-                "carrier": order["shipping"],
-                "status": order["status"],
-                "estimated_delivery": order["estimated_delivery"],
-                "order_id": order["id"],
-                "product": order["product"],
+                "tracking": order.tracking,
+                "carrier": order.shipping,
+                "status": order.status,
+                "estimated_delivery": order.estimated_delivery,
+                "order_id": order.id,
+                "product": order.product,
             }, ensure_ascii=False, indent=2)
 
         self.agent = create_agent(

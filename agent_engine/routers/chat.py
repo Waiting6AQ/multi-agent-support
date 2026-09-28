@@ -7,7 +7,6 @@
 """
 import uuid
 from fastapi import APIRouter, Depends
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from core.dependencies import get_agent_service, get_conversation_service
 from models.chat import ChatRequest, ChatResponse
@@ -32,12 +31,11 @@ async def chat(
         message=request.message,
         conversation_id=request.conversation_id,
     )
-    # 更新对话摘要侧边栏（同步 SQLite 写 → 线程池执行，防止锁等待期间卡住事件循环）
-    await run_in_threadpool(
-        conv.upsert,
+    # 更新对话摘要侧边栏（写入 PG）
+    await conv.upsert(
         conv_id=result.conversation_id,
         title=request.message[:80],
-        message_count=1,
+        message_count=1,  # 目前恒为 1，待单独排期修复（见 bug_log）
     )
     return result
 
@@ -55,12 +53,10 @@ async def chat_stream(
 ):
     # 预先确定对话 ID，记录到侧边栏
     cid = request.conversation_id or str(uuid.uuid4())
-    # 同步 SQLite 写 → 线程池执行（防止锁等待期间卡住事件循环）
-    await run_in_threadpool(
-        conv.upsert,
+    await conv.upsert(
         conv_id=cid,
         title=request.message[:80],
-        message_count=1,
+        message_count=1,  # 目前恒为 1，待单独排期修复（见 bug_log）
     )
 
     stream = agent.chat_stream(message=request.message, conversation_id=cid)

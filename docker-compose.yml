@@ -1,6 +1,6 @@
 # 多 Agent 智能客服系统 - 容器化编排
 # 启动：docker compose up -d --build
-# 配置：同目录 .env（DB_PASSWORD、DASHSCOPE_API_KEY、QIANFAN_API_KEY）
+# 配置：同目录 .env（DB_PASSWORD、PG_PASSWORD、DASHSCOPE_API_KEY、QIANFAN_API_KEY）
 services:
   mysql:
     image: mysql:8
@@ -15,6 +15,26 @@ services:
       timeout: 3s
       retries: 10
 
+  # 引擎的会话状态（LangGraph checkpoint）与业务数据（对话/订单/产品）
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${PG_USER:-engine}
+      # ⚠️ 密码含 @ : / 等特殊字符时需 URL 编码，否则 DSN 解析会出错
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?请在 .env 设置 PG_PASSWORD}
+      POSTGRES_DB: agent_engine
+      TZ: Asia/Shanghai
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ 是 compose 转义：留给容器内 shell 展开，避免 compose 在解析期插值
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s   # 首次 initdb 要时间，别算进 retries
+    # 不映射宿主端口：内网服务，只有 engine 访问（也避免两个项目抢 5432）
+
   engine:
     build: ./agent_engine
     environment:
@@ -23,9 +43,14 @@ services:
       LLM_MODEL_NAME: ${LLM_MODEL_NAME:-openai:qwen3.8-2.4t-a95b}
       # 联网搜索 MCP 鉴权：未配置时引擎自动降级（搜索不可用，其余功能正常）
       QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
-    # 数据卷：FAQ 向量库/订单产品 SQLite/checkpoint 跨容器保留（重建不用重新种子/丢失对话状态）
+      # 会话状态 + 业务数据都在 PG（容器内没有 localhost，走服务名 postgres）
+      POSTGRES_DSN: postgresql://${PG_USER:-engine}:${PG_PASSWORD:?}@postgres:5432/agent_engine
+    # 数据卷：只剩 FAQ 向量库（checkpoint 和业务数据已迁到 PostgreSQL）
     volumes:
       - engine-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     # 不暴露端口：内网服务，只有 backend 能访问（"Python 不出内网"在部署层落地）
     restart: unless-stopped
 
@@ -56,3 +81,4 @@ services:
 volumes:
   mysql-data:
   engine-data:
+  pg-data:

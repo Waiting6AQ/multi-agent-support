@@ -1,13 +1,33 @@
 """
 产品咨询 Agent
 
-负责产品搜索、推荐，工具：search_product、get_recommendations（SQLite 查询）。
+负责产品搜索、推荐，工具：search_product、get_recommendations（PostgreSQL ORM 查询）。
 """
 import json
-import sqlite3
+
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from models.tables import Product
+
+
+def _to_dict(product: Product) -> dict:
+    """ORM 对象 → 可 JSON 序列化的 dict
+
+    price 列是 NUMERIC，读出来是 Decimal，json.dumps 不认（会抛 TypeError），转 float。
+    features 列是 JSONB，读出来已经是 list——旧实现存的是 JSON 字符串，需要 json.loads。
+    """
+    return {
+        "name": product.name,
+        "category": product.category,
+        "price": float(product.price),
+        "features": product.features or [],
+        "stock": product.stock,
+        "rating": product.rating,
+    }
 
 
 class ProductConsultAgent:
@@ -25,53 +45,40 @@ class ProductConsultAgent:
 注意：所有产品信息以工具查询结果为准，不要编造产品信息。如果本地数据库查不到用户要找的商品，诚实告知后必须在回复末尾明确建议：
 "您可以说联网搜索XXXX，我会帮您转接联网搜索Agent查询该商品的外部信息。"""
 
-    def __init__(self, llm, db_path: str):
+    def __init__(self, llm, session_factory: async_sessionmaker):
         self.llm = llm
-        self.db_path = db_path
+        self._session_factory = session_factory
 
         @tool
-        def search_product(keyword: str) -> str:
+        async def search_product(keyword: str) -> str:
             """搜索产品信息，keyword: 产品名称关键词"""
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                "SELECT * FROM products WHERE name LIKE ?", (f"%{keyword}%",)
-            ).fetchall()
-            conn.close()
+            async with self._session_factory() as session:
+                rows = (
+                    await session.scalars(
+                        select(Product).where(Product.name.like(f"%{keyword}%"))
+                    )
+                ).all()
             if rows:
-                results = []
-                for r in rows:
-                    item = dict(r)
-                    if isinstance(item.get("features"), str):
-                        item["features"] = json.loads(item["features"])
-                    results.append(item)
-                return json.dumps(results, ensure_ascii=False, indent=2)
+                return json.dumps(
+                    [_to_dict(p) for p in rows], ensure_ascii=False, indent=2
+                )
             return f"未找到包含 '{keyword}' 的产品，试试搜索'手表'、'耳机'、'充电宝'、'音箱'"
 
         @tool
-        def get_recommendations(budget: float, category: str = "") -> str:
+        async def get_recommendations(budget: float, category: str = "") -> str:
             """根据预算和品类推荐产品，budget: 预算金额（元），category: 品类如'穿戴设备''音频''电源''智能家居'（可选）"""
-            conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
+            stmt = select(Product).where(Product.price <= budget)
             if category:
-                rows = conn.execute(
-                    "SELECT * FROM products WHERE price <= ? AND category = ? ORDER BY rating DESC LIMIT 3",
-                    (budget, category),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT * FROM products WHERE price <= ? ORDER BY rating DESC LIMIT 3",
-                    (budget,),
-                ).fetchall()
-            conn.close()
+                stmt = stmt.where(Product.category == category)
+            stmt = stmt.order_by(Product.rating.desc()).limit(3)
+
+            async with self._session_factory() as session:
+                rows = (await session.scalars(stmt)).all()
+
             if rows:
-                results = []
-                for r in rows:
-                    item = dict(r)
-                    if isinstance(item.get("features"), str):
-                        item["features"] = json.loads(item["features"])
-                    results.append(item)
-                return json.dumps(results, ensure_ascii=False, indent=2)
+                return json.dumps(
+                    [_to_dict(p) for p in rows], ensure_ascii=False, indent=2
+                )
             return f"在预算 ¥{budget} 内暂无推荐产品，建议适当提高预算或换个品类看看"
 
         self.agent = create_agent(

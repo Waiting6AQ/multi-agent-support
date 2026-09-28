@@ -20,6 +20,27 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # 引擎的会话状态（LangGraph checkpoint）与业务数据（对话/订单/产品）
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${PG_USER:-engine}
+      # ⚠️ 密码含 @ : / 等特殊字符时需 URL 编码，否则 DSN 解析会出错
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?请在 .env 设置 PG_PASSWORD}
+      POSTGRES_DB: agent_engine
+      TZ: Asia/Shanghai
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ 是 compose 转义：留给容器内 shell 展开，避免 compose 在解析期插值
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s   # 首次 initdb 要时间，别算进 retries
+    # 不映射宿主端口：内网服务，只有 engine 访问
+    restart: unless-stopped
+
   engine:
     image: ${REGISTRY:-crpi-69vrskbekmelwihc.cn-guangzhou.personal.cr.aliyuncs.com}/waiting6aq/agent-engine:latest
     environment:
@@ -28,8 +49,13 @@ services:
       LLM_MODEL_NAME: ${LLM_MODEL_NAME:-openai:qwen3.8-2.4t-a95b}
       # 联网搜索 MCP 鉴权：未设置时引擎自动降级（搜索不可用，其余功能正常）
       QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
+      # 会话状态 + 业务数据都在 PG（容器内没有 localhost，走服务名 postgres）
+      POSTGRES_DSN: postgresql://${PG_USER:-engine}:${PG_PASSWORD:?}@postgres:5432/agent_engine
     volumes:
       - engine-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   backend:
@@ -57,3 +83,4 @@ services:
 volumes:
   mysql-data:
   engine-data:
+  pg-data:

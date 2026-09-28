@@ -1,11 +1,15 @@
 """
 种子数据
 
-负责插入模拟数据（DML），与 Schema 定义分离。
+负责插入模拟数据（DML）。表结构由 models/tables.py 的 ORM 模型定义，
+建表在 core/database.py 的 init_database() 里用 Base.metadata.create_all 完成。
 """
-import sqlite3
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from models.tables import Order, Product
 
 
 # ==================== FAQ 数据 ====================
@@ -76,12 +80,13 @@ ORDERS = [
     },
 ]
 
+# features 是真正的 list（对应 JSONB 列），不再是 JSON 字符串
 PRODUCTS = [
     {
         "name": "智能手表 Pro",
         "category": "穿戴设备",
         "price": 1299.00,
-        "features": '["心率监测", "血氧检测", "GPS定位", "NFC支付", "IP68防水", "14天续航"]',
+        "features": ["心率监测", "血氧检测", "GPS定位", "NFC支付", "IP68防水", "14天续航"],
         "stock": 156,
         "rating": 4.8,
     },
@@ -89,7 +94,7 @@ PRODUCTS = [
         "name": "无线耳机 Max",
         "category": "音频",
         "price": 599.00,
-        "features": '["主动降噪", "空间音频", "蓝牙5.3", "30小时续航", "IPX5防水"]',
+        "features": ["主动降噪", "空间音频", "蓝牙5.3", "30小时续航", "IPX5防水"],
         "stock": 89,
         "rating": 4.6,
     },
@@ -97,7 +102,7 @@ PRODUCTS = [
         "name": "便携充电宝",
         "category": "电源",
         "price": 199.00,
-        "features": '["20000mAh", "65W快充", "Type-C双向", "LED电量显示", "轻薄机身"]',
+        "features": ["20000mAh", "65W快充", "Type-C双向", "LED电量显示", "轻薄机身"],
         "stock": 234,
         "rating": 4.5,
     },
@@ -105,7 +110,7 @@ PRODUCTS = [
         "name": "智能音箱",
         "category": "智能家居",
         "price": 399.00,
-        "features": '["语音助手", "Hi-Fi音质", "智能家居控制", "多房间联动", "蓝牙+WiFi"]',
+        "features": ["语音助手", "Hi-Fi音质", "智能家居控制", "多房间联动", "蓝牙+WiFi"],
         "stock": 67,
         "rating": 4.4,
     },
@@ -115,7 +120,7 @@ PRODUCTS = [
 # ==================== 插入函数 ====================
 
 def seed_faq(chroma_persist_dir: str, embeddings) -> None:
-    """将 FAQ 写入 ChromaDB，已有数据则跳过"""
+    """将 FAQ 写入 ChromaDB，已有数据则跳过（Chroma 仍是同步 API）"""
     store = Chroma(
         persist_directory=chroma_persist_dir,
         embedding_function=embeddings,
@@ -138,40 +143,25 @@ def seed_faq(chroma_persist_dir: str, embeddings) -> None:
     print(f"✅ FAQ 向量库初始化完成，共 {len(docs)} 条")
 
 
-def seed_orders(db_path: str) -> None:
-    """插入订单模拟数据，已有数据则跳过"""
-    conn = sqlite3.connect(db_path)
-    existing = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
-    if existing > 0:
-        print(f"ℹ️  orders 表已有 {existing} 条数据，跳过初始化")
-        conn.close()
-        return
-
-    for o in ORDERS:
-        conn.execute(
-            "INSERT INTO orders VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (o["id"], o["product"], o["price"], o["status"],
-             o["shipping"], o["tracking"], o["estimated_delivery"]),
-        )
-    conn.commit()
-    conn.close()
+async def seed_orders(session_factory: async_sessionmaker) -> None:
+    """插入订单模拟数据，已有数据则跳过（幂等：重启不会重复灌）"""
+    async with session_factory() as session:
+        existing = await session.scalar(select(func.count()).select_from(Order))
+        if existing:
+            print(f"ℹ️  orders 表已有 {existing} 条数据，跳过初始化")
+            return
+        session.add_all([Order(**o) for o in ORDERS])
+        await session.commit()
     print(f"✅ orders 表初始化完成，共 {len(ORDERS)} 条")
 
 
-def seed_products(db_path: str) -> None:
+async def seed_products(session_factory: async_sessionmaker) -> None:
     """插入产品模拟数据，已有数据则跳过"""
-    conn = sqlite3.connect(db_path)
-    existing = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-    if existing > 0:
-        print(f"ℹ️  products 表已有 {existing} 条数据，跳过初始化")
-        conn.close()
-        return
-
-    for p in PRODUCTS:
-        conn.execute(
-            "INSERT INTO products VALUES (?, ?, ?, ?, ?, ?)",
-            (p["name"], p["category"], p["price"], p["features"], p["stock"], p["rating"]),
-        )
-    conn.commit()
-    conn.close()
+    async with session_factory() as session:
+        existing = await session.scalar(select(func.count()).select_from(Product))
+        if existing:
+            print(f"ℹ️  products 表已有 {existing} 条数据，跳过初始化")
+            return
+        session.add_all([Product(**p) for p in PRODUCTS])
+        await session.commit()
     print(f"✅ products 表初始化完成，共 {len(PRODUCTS)} 条")
