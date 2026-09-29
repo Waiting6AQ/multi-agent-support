@@ -3,14 +3,18 @@
 ## 目录结构
 
 ```
-multi_agent_fastapi/
+agent_engine/
 ├── main.py                     # FastAPI 入口
 ├── core/
 │   ├── config.py               # 配置（pydantic-settings）
-│   └── dependencies.py         # 依赖注入
+│   ├── dependencies.py         # 依赖注入
+│   ├── database.py             # SQLAlchemy 引擎（业务表）
+│   ├── postgres.py             # psycopg 连接池 + LangGraph checkpointer
+│   └── compat.py               # 平台兼容（Windows 事件循环策略）
 ├── models/
 │   ├── chat.py                 # 客服对话请求/响应模型
-│   └── conversation.py         # 对话管理模型
+│   ├── conversation.py         # 对话管理模型
+│   └── tables.py               # SQLAlchemy ORM 模型
 ├── routers/
 │   ├── chat.py                 # 客服聊天路由（流式+非流式）
 │   └── conversations.py        # 对话管理路由
@@ -29,18 +33,14 @@ multi_agent_fastapi/
 ├── utils/
 │   ├── embeddings.py           # AliyunEmbeddings
 │   ├── llm.py                  # LLM 工厂（create_llm / create_json_llm）
-│   ├── db_schema.py            # 数据库 DDL
-│   ├── db_seed.py              # 种子数据
+│   ├── db_seed.py              # 种子数据（ORM 写入）
 │   ├── db_init.py              # 数据初始化入口
 │   └── json_utils.py           # JSON 安全解析
 ├── data/                       # gitignored
-│   ├── chroma_db/
-│   ├── checkpoints.db
-│   └── app.db
+│   └── chroma_db/              # FAQ 向量库
 ├── static/                     # Web 前端
 ├── docs/                       # 项目文档
-├── dev_logs/                   # 开发日志
-├── Dockerfile                    # Docker 镜像
+├── Dockerfile                  # Docker 镜像
 ├── .dockerignore                 # Docker 构建排除
 ├── .env / .env.example / .gitignore
 └── requirements.txt

@@ -15,11 +15,11 @@
 
 ## 技术栈
 
-| 层       | 技术                                                                                    |
-| -------- | --------------------------------------------------------------------------------------- |
-| 前端     | Vue 3 / Vite / axios / fetch（SSE 流式读取）                                            |
+| 层       | 技术                                                                                        |
+| -------- | ------------------------------------------------------------------------------------------- |
+| 前端     | Vue 3 / Vite / axios / fetch（SSE 流式读取）                                                |
 | 业务后端 | Spring Boot 3.5 / MyBatis（注解 + XML）/ MySQL / jjwt / spring-security-crypto / RestClient |
-| AI 引擎  | Python FastAPI / LangGraph / LangChain / ChromaDB / DashScope Qwen / MCP                |
+| AI 引擎  | Python FastAPI / LangGraph / LangChain / ChromaDB / DashScope Qwen / MCP                    |
 
 ## 目录结构
 
@@ -49,7 +49,7 @@ Spring Boot 业务后端 (:8082)
     Python 多 Agent 引擎 (:8001)
     │  LangGraph：接待员 → 条件路由 → 专科 Agent → 质量检查 → 转人工判断
     ▼
-SQLite + ChromaDB（checkpoint 多轮上下文 / FAQ 向量索引）
+PostgreSQL + ChromaDB（checkpoint 多轮上下文 / FAQ 向量索引）
 ```
 
 ## AI 引擎核心链路（agent_engine）
@@ -57,7 +57,7 @@ SQLite + ChromaDB（checkpoint 多轮上下文 / FAQ 向量索引）
 Coordinator 模式编排：`前台接待 → 条件路由 → 专科 Agent → 质量评估 → 兜底`
 
 - **前台接待（Coordinator）**：JSON Mode 一次调用完成意图分类 + 自然语言回复；闲聊/转人工直接答复，业务意图路由给专科 Agent
-- **专科 Agent 各司其职**：技术支持 = FAQ 向量检索 + Agent Skills 排查流程兜底；订单/产品 = SQLite 结构化精确查询；联网搜索 = 百度搜索 MCP（启动/运行时两层降级）
+- **专科 Agent 各司其职**：技术支持 = FAQ 向量检索 + Agent Skills 排查流程兜底；订单/产品 = PostgreSQL 结构化精确查询（SQLAlchemy ORM）；联网搜索 = 百度搜索 MCP（启动/运行时两层降级）
 - **质量评估**：LLM 四维度打分（相关性/完整性/专业性/有用性），低分自动转人工（前端横幅提示）
 - **多轮对话**：checkpoint 持久化 + 上下文自动截断，重启不丢会话
 - **流式输出**：SSE 实时推送意图 → 逐 token 打字机 → 完成（意图随流即时展示）
@@ -66,7 +66,17 @@ Coordinator 模式编排：`前台接待 → 条件路由 → 专科 Agent → �
 
 ## 界面预览
 
-![多 Agent 智能客服界面](docs/screenshots/agent-chat.png)
+**空状态**
+
+![空状态](docs/screenshots/agent-chat-1.png)
+
+**意图路由**
+
+![意图路由](docs/screenshots/agent-chat-3.png)
+
+**完整回答**
+
+![完整回答](docs/screenshots/agent-chat-4.png)
 
 ## 快速开始
 
@@ -74,6 +84,7 @@ Coordinator 模式编排：`前台接待 → 条件路由 → 专科 Agent → �
 
 - JDK 17+、Node 18+、Python 3.12+
 - MySQL 8+（root 密码通过 `backend/.env` 的 `DB_PASSWORD` 提供，见下方配置步骤）
+- PostgreSQL 18（本地开发需要，跑引擎用；Docker 部署由 compose 提供）
 - DashScope API Key（agent_engine/.env）
 
 ### 配置
@@ -83,7 +94,7 @@ Coordinator 模式编排：`前台接待 → 条件路由 → 专科 Agent → �
 ```bash
 # AI 引擎密钥（DashScope）
 cd agent_engine
-copy .env.example .env      # 填入 DASHSCOPE_API_KEY
+copy .env.example .env      # 填入 DASHSCOPE_API_KEY 和 POSTGRES_DSN
 cd ..
 
 # 业务后端数据库/密钥
@@ -114,24 +125,24 @@ npm run dev
 
 ### API 端点
 
-| 方法   | 路径                | 说明                            |
-| ------ | ------------------- | ------------------------------- |
-| POST   | /api/auth/register  | 注册（默认 USER 角色）          |
-| POST   | /api/auth/login     | 登录，签发 JWT                  |
-| POST   | /api/sessions       | 创建会话                        |
-| GET    | /api/sessions       | 会话列表（分页，仅当前用户）    |
-| GET    | /api/sessions/{id}  | 会话详情（含消息 + 意图标签）   |
-| DELETE | /api/sessions/{id}  | 删除会话（级联删消息）          |
-| POST   | /api/chat           | 聊天（非流式，落库）            |
-| POST   | /api/chat/stream    | 聊天（SSE 流式，打字机效果）    |
+| 方法   | 路径               | 说明                          |
+| ------ | ------------------ | ----------------------------- |
+| POST   | /api/auth/register | 注册（默认 USER 角色）        |
+| POST   | /api/auth/login    | 登录，签发 JWT                |
+| POST   | /api/sessions      | 创建会话                      |
+| GET    | /api/sessions      | 会话列表（分页，仅当前用户）  |
+| GET    | /api/sessions/{id} | 会话详情（含消息 + 意图标签） |
+| DELETE | /api/sessions/{id} | 删除会话（级联删消息）        |
+| POST   | /api/chat          | 聊天（非流式，落库）          |
+| POST   | /api/chat/stream   | 聊天（SSE 流式，打字机效果）  |
 
 ## Docker 部署（可选）
 
-一条命令启动完整系统（MySQL + 引擎 + Java 后端 + 前端），无需本地安装 Python/Node/JDK：
+一条命令启动完整系统（MySQL + PostgreSQL + 引擎 + Java 后端 + 前端），无需本地安装 Python/Node/JDK：
 
 ```powershell
 # 1. 配置：根目录 .env（已 gitignore），复制模板填入真实值
-Copy-Item .env.example .env    # 填 DB_PASSWORD（容器内 MySQL，随便设）+ DASHSCOPE_API_KEY
+Copy-Item .env.example .env    # 填 DB_PASSWORD、PG_PASSWORD（容器内数据库，随便设）+ DASHSCOPE_API_KEY
 
 # 2. 构建并启动（首次约 10-20 分钟；之后直接 up -d 秒起）
 docker compose up -d --build
@@ -141,7 +152,7 @@ docker compose logs -f backend    # 看到"已创建默认管理员账号 admin"
 访问 `http://localhost:8080`（nginx 托管前端 + 代理 /api，无跨域）；后端 API 也可直连 `http://localhost:8082`。
 
 - **架构落地**：mysql/engine 不暴露宿主端口（"Python 不出内网"在部署层生效），容器间用服务名互访
-- **数据**：账号/会话/消息在 mysql 卷；引擎的 FAQ 向量库/SQLite 在 engine-data 卷——`down` 全部保留，`down -v` 才清空
+- **数据**：账号/会话/消息在 mysql 卷；引擎的 FAQ 向量库在 engine-data 卷；会话状态与业务数据在 pg-data 卷——`down` 全部保留，`down -v` 才清空
 - **结束**：`docker compose stop`（保留现场，下次秒开）或 `docker compose down`
 
 ### 镜像化部署（服务器）
