@@ -165,8 +165,13 @@ class AgentService:
         writer({"event": "progress", "data": "技术支持工程师正在处理"})
 
         recent = state["messages"][-11:]  # 保留 5 个完整轮次 + 当前问题，防止多轮历史过长
+
+        # 调工具期间不产出 token，补一次进度
+        def _on_tool_call() -> None:
+            writer({"event": "progress", "data": "正在查阅资料"})
+
         reply = ""
-        async for token in self.tech_agent.handle_stream(recent):
+        async for token in self.tech_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
         return {
@@ -180,8 +185,13 @@ class AgentService:
         writer({"event": "progress", "data": "订单服务专员正在处理"})
 
         recent = state["messages"][-11:]
+
+        # 调工具期间不产出 token，补一次进度
+        def _on_tool_call() -> None:
+            writer({"event": "progress", "data": "正在查询订单"})
+
         reply = ""
-        async for token in self.order_agent.handle_stream(recent):
+        async for token in self.order_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
         return {
@@ -195,8 +205,12 @@ class AgentService:
         writer({"event": "progress", "data": "产品顾问正在处理"})
 
         recent = state["messages"][-11:]
+
+        # 调工具期间不产出 token，补一次进度
+        def _on_tool_call() -> None:
+            writer({"event": "progress", "data": "正在查询产品库"})
         reply = ""
-        async for token in self.product_agent.handle_stream(recent):
+        async for token in self.product_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
         return {
@@ -210,9 +224,13 @@ class AgentService:
         writer = get_stream_writer()
         writer({"event": "progress", "data": "正在联网搜索"})
 
+        # 调工具期间不产出 token，补一次进度
+        def _on_tool_call() -> None:
+            writer({"event": "progress", "data": "正在获取搜索结果"})
+
         recent = state["messages"][-11:]
         reply = ""
-        async for token in self.web_agent.handle_stream(recent):
+        async for token in self.web_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
         return {
@@ -281,17 +299,6 @@ class AgentService:
                 result.append(entry)
             return result
         return []
-
-    async def delete_history(self, thread_id: str):
-        """删除该 thread 的全部 checkpoint 数据（配合 ConversationService 的元数据删除）
-
-        用官方 adelete_thread 而非裸 SQL，原因有三：
-        - PG 版 saver.conn 是连接池对象，没有 .execute()
-        - PG 版表名是 checkpoint_blobs / checkpoint_writes（SQLite 叫 writes），
-          blob 还单独拆了一张表——照抄旧 SQL 既会报错、也删不干净
-        - 它一次清三张表，且与 saver 内部锁的并发写是安全的
-        """
-        await self.checkpointer.adelete_thread(thread_id)
 
     async def chat(self, message: str, conversation_id: str | None = None
                    ) -> ChatResponse:

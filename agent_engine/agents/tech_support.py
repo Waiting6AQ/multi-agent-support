@@ -11,6 +11,7 @@ from langchain.agents.middleware import ModelRetryMiddleware
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from core.config import settings
+from agents._stream import stream_agent_tokens
 
 
 AGENT_SKILLS_DIR = settings.SKILLS_DIR + "/tech_support"
@@ -44,7 +45,12 @@ class TechSupportAgent:
             model=llm,
             tools=[search_faq],
             backend=FilesystemBackend(root_dir=AGENT_SKILLS_DIR, virtual_mode=True),
-            skills=[AGENT_SKILLS_DIR],
+            # skills 的路径必须相对于 backend 的 root，不能传绝对路径：
+            # 虚拟模式下 backend 会对路径做 lstrip("/")，绝对路径的斜杠被削掉后
+            # 降级成相对路径、拼到 root 后面变成不存在的嵌套路径（Linux 上必然失败）。
+            # Windows 上因为 pathlib 拼接时"右边是绝对路径则丢弃左边"而侥幸能用，
+            # 所以本地测不出来。root_dir 本身就是 tech_support 技能目录，用 "/" 指向它
+            skills=["/"],
             system_prompt=self.SYSTEM_PROMPT,
             middleware=[
                 ModelRetryMiddleware(max_retries=3, backoff_factor=2.0, initial_delay=1.0),
@@ -61,19 +67,13 @@ class TechSupportAgent:
             print(f"⚠️ 技术支持 Agent 异常: {type(e).__name__}: {e}")
         return "抱歉，技术支持服务暂时不可用。请稍后重试，或拨打客服热线 400-xxx-xxxx 获取帮助。"
 
-    async def handle_stream(self, messages: list):
+    async def handle_stream(self, messages: list, on_tool_call=None):
         """流式处理（async — Deep Agent 使用 astream）"""
         had_content = False
         try:
-            async for chunk in self.agent.astream(
-                {"messages": messages},
-                stream_mode="messages",
-            ):
-                if isinstance(chunk, tuple) and len(chunk) == 2:
-                    msg = chunk[0]
-                    if hasattr(msg, "content") and msg.content:
-                        had_content = True
-                        yield msg.content
+            async for text in stream_agent_tokens(self.agent, messages, on_tool_call):
+                had_content = True
+                yield text
         except Exception as e:
             print(f"⚠️ 技术支持 Agent 异常: {type(e).__name__}: {e}")
         if not had_content:

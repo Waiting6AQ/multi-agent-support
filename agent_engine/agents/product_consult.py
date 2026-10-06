@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from models.tables import Product
+from agents._stream import stream_agent_tokens
 
 
 def _to_dict(product: Product) -> dict:
@@ -100,20 +101,13 @@ class ProductConsultAgent:
             print(f"⚠️ 产品咨询 Agent 异常: {type(e).__name__}: {e}")
         return "抱歉，产品咨询服务暂时不可用。请稍后再试或联系人工客服。"
 
-    async def handle_stream(self, messages: list):
+    async def handle_stream(self, messages: list, on_tool_call=None):
         """流式处理，逐 token 返回（用于 SSE 打字机效果）"""
         had_content = False
         try:
-            async for chunk in self.agent.astream(
-                {"messages": messages},
-                stream_mode="messages",
-            ):
-                if isinstance(chunk, tuple) and len(chunk) == 2:
-                    msg = chunk[0]
-                    if hasattr(msg, "content") and msg.content:
-                        if getattr(msg, "type", "") != "tool":
-                            had_content = True
-                            yield msg.content
+            async for text in stream_agent_tokens(self.agent, messages, on_tool_call):
+                had_content = True
+                yield text
         except Exception as e:
             print(f"⚠️ 产品咨询 Agent 异常: {type(e).__name__}: {e}")
         if not had_content:

@@ -54,6 +54,16 @@ async def lifespan(app: FastAPI):
         embeddings=embeddings,
     )
 
+    # ---- ③ 联网搜索 MCP 工具 ----
+    # 外部服务，主动预热而不是留给首次请求：
+    #   - 连不上会立刻出现在启动日志里，不会混在访问日志中难以察觉
+    #   - 不让用户第一次提问额外承担一次 MCP 握手
+    # 失败不影响启动：get_web_agent 内部降级，并在冷却期后自动重试
+    from core.dependencies import get_web_agent
+    web_agent = await get_web_agent()
+    if web_agent.tools:
+        print(f"✅ 联网搜索 MCP 已就绪（{len(web_agent.tools)} 个工具）")
+
     yield
 
     # ---- 关闭：释放连接（顺序与建立时相反）----

@@ -8,6 +8,7 @@ MCP 工具是纯异步的，因此 Agent 使用 astream/ainvoke。
 """
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
+from agents._stream import stream_agent_tokens
 
 
 class WebSearchAgent:
@@ -50,24 +51,21 @@ class WebSearchAgent:
             print(f"⚠️ 联网搜索 Agent 异常: {type(e).__name__}: {e}")
         return "抱歉，联网搜索暂时不可用。请稍后再试或联系人工客服。"
 
-    async def handle_stream(self, messages: list):
-        """流式处理（async — MCP 工具需要异步上下文执行 HTTP 调用）"""
+    async def handle_stream(self, messages: list, on_tool_call=None):
+        """流式处理（async — MCP 工具需要异步上下文执行 HTTP 调用）
+
+        on_tool_call：模型开始调用 webSearch 时触发一次，供调用方显示"搜索中"
+        （检索要好几秒，期间不产出 token）。
+        """
         if not self.tools:
             # MCP 工具加载失败（启动时降级）：直接短路，不浪费 LLM 调用
             yield "抱歉，联网搜索暂时不可用。请稍后再试或联系人工客服。"
             return
         had_content = False
         try:
-            async for chunk in self.agent.astream(
-                {"messages": messages},
-                stream_mode="messages",
-            ):
-                if isinstance(chunk, tuple) and len(chunk) == 2:
-                    msg = chunk[0]
-                    if hasattr(msg, "content") and msg.content:
-                        if getattr(msg, "type", "") != "tool":
-                            had_content = True
-                            yield msg.content
+            async for text in stream_agent_tokens(self.agent, messages, on_tool_call):
+                had_content = True
+                yield text
         except Exception as e:
             # MCP 服务中途不可用时降级：已有部分内容照常输出
             print(f"⚠️ 联网搜索 Agent 异常: {type(e).__name__}: {e}")
