@@ -35,7 +35,6 @@ async def chat(
     await conv.upsert(
         conv_id=result.conversation_id,
         title=request.message[:80],
-        message_count=1,  # 目前恒为 1，待单独排期修复（见 bug_log）
     )
     return result
 
@@ -56,7 +55,6 @@ async def chat_stream(
     await conv.upsert(
         conv_id=cid,
         title=request.message[:80],
-        message_count=1,  # 目前恒为 1，待单独排期修复（见 bug_log）
     )
 
     stream = agent.chat_stream(message=request.message, conversation_id=cid)

@@ -17,9 +17,19 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
+import sys
 
 from core.config import settings
 from routers import chat, conversations
+
+# ==================== 控制台编码兼容 ====================
+
+# Windows 控制台默认 GBK，日志里的 ⚠️ / ✅ 会让 print 抛 UnicodeEncodeError。
+# 后果不只是日志乱码：节点里"打印警告后降级"的写法会变成打印本身崩掉，降级失效。
+# 保留控制台原本的编码，只把编不出来的字符换成 ?（Linux/Docker 是 UTF-8，这行是空操作）
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="replace")
 
 
 # ==================== 初始化数据目录 ====================
