@@ -21,6 +21,28 @@ from langchain_core.messages import HumanMessage, AIMessage
 from core.config import settings
 from models.chat import ChatResponse
 
+
+def _turn_input(message: str) -> dict:
+    """每轮开始时的初始状态（chat / chat_stream 共用）
+
+    除了用户消息，还要把【上一轮的产物清空】。LangGraph 的状态是按返回的键合并的——
+    某个节点这一轮没写某个键，上一轮的值就会留着。
+
+    这个项目已经为此打过两次补丁（product_consult / web_search 里各有一处手动重置），
+    说明"哪条路径跳过了哪个节点"很容易漏。每轮统一重置一次覆盖整类；
+    那两处节点内的重置保留作第二道防线——它们不依赖调用方记得用这个函数。
+    """
+    return {
+        "messages": [HumanMessage(content=message)],
+        "intent": "",
+        "confidence": 0.0,
+        "agent_response": "",
+        "quality_score": 0.0,
+        "needs_escalation": False,
+        "escalation_reason": "",
+    }
+
+
 class AgentState(TypedDict):
     """LangGraph 多 Agent 客服系统状态"""
     messages: Annotated[list, add_messages]      # add_messages 自动管理对话历史
@@ -82,6 +104,7 @@ class AgentService:
                 "order_service": "order_service",
                 "product_consult": "product_consult",
                 "web_search": "web_search",
+                "escalate_final": "escalate_final",
                 "respond": "respond",
             }
         )
@@ -149,11 +172,16 @@ class AgentService:
         }
 
     def _route_by_receptionist(self, state: AgentState) -> Literal[
-        "tech_support", "order_service", "product_consult", "web_search", "respond"
+        "tech_support", "order_service", "product_consult", "web_search",
+        "escalate_final", "respond"
     ]:
-        """条件路由：chitchat/escalate 已由接待员回复，直接走 respond；业务意图路由到专业 Agent"""
+        """条件路由：业务意图送专业 Agent；闲聊走 respond；转人工走 escalate_final"""
         intent = state["intent"]
-        if intent in ("chitchat", "escalate"):
+        # 转人工必须走 escalate_final——那个节点负责把 needs_escalation 置为 True。
+        # 走 respond 的话会被它覆盖成 False（它只做"正常回复"），前端横幅就永远不显示
+        if intent == "escalate":
+            return "escalate_final"
+        if intent == "chitchat":
             return "respond"
         if intent in ("tech_support", "order_service", "product_consult", "web_search"):
             return intent
@@ -312,10 +340,7 @@ class AgentService:
             conversation_id = str(uuid.uuid4())
 
         config = {"configurable": {"thread_id": conversation_id}}
-        result = await self.graph.ainvoke(
-            {"messages": [HumanMessage(content=message)]},
-            config,
-        )
+        result = await self.graph.ainvoke(_turn_input(message), config)
 
         return ChatResponse(
             conversation_id=conversation_id,
@@ -342,7 +367,7 @@ class AgentService:
             conversation_id = str(uuid.uuid4())
 
         config = {"configurable": {"thread_id": conversation_id}}
-        input_data = {"messages": [HumanMessage(content=message)]}
+        input_data = _turn_input(message)
 
         intent_seen = False
         async for chunk in self.graph.astream(input_data, config, stream_mode="custom"):
