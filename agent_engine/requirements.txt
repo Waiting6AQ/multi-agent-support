@@ -21,9 +21,8 @@ psycopg[binary,pool]>=3.3.0
 dashscope>=1.20.0
 langchain-openai>=0.2.0
 
-# Vector database (for FAQ)
-chromadb>=0.5.0
-langchain-chroma>=1.0.0
+# Vector index for FAQ — pgvector column inside the existing PostgreSQL
+pgvector>=0.5.0
 
 # Data validation
 pydantic>=2.0.0,<3.0.0

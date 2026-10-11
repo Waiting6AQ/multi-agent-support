@@ -20,9 +20,10 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # 引擎的会话状态（LangGraph checkpoint）与业务数据（对话/订单/产品）
+  # 引擎的会话状态（LangGraph checkpoint）与业务数据（对话/订单/产品/FAQ）
   postgres:
-    image: postgres:18
+    # 钉到具体版本，prod 不跟随隐式升级；同大版本，已有 pg-data 卷可直接复用
+    image: pgvector/pgvector:0.8.6-pg18
     environment:
       POSTGRES_USER: ${PG_USER:-engine}
       # ⚠️ 密码含 @ : / 等特殊字符时需 URL 编码，否则 DSN 解析会出错
@@ -53,8 +54,6 @@ services:
       QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
       # 会话状态 + 业务数据都在 PG（容器内没有 localhost，走服务名 postgres）
       POSTGRES_DSN: postgresql://${PG_USER:-engine}:${PG_PASSWORD:?}@postgres:5432/agent_engine
-    volumes:
-      - engine-data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,5 +84,4 @@ services:
 
 volumes:
   mysql-data:
-  engine-data:
   pg-data:

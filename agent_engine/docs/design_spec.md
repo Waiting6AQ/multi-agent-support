@@ -36,8 +36,6 @@ agent_engine/
 │   ├── db_seed.py              # 种子数据（ORM 写入）
 │   ├── db_init.py              # 数据初始化入口
 │   └── json_utils.py           # JSON 安全解析
-├── data/                       # gitignored
-│   └── chroma_db/              # FAQ 向量库
 ├── static/                     # Web 前端
 ├── docs/                       # 项目文档
 ├── Dockerfile                  # Docker 镜像

@@ -32,12 +32,6 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(errors="replace")
 
 
-# ==================== 初始化数据目录 ====================
-
-# 只剩 ChromaDB 需要本地目录（会话状态和业务数据都已迁到 PostgreSQL）
-os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
-
-
 # ==================== 启动预加载 ====================
 
 @asynccontextmanager
@@ -53,14 +47,13 @@ async def lifespan(app: FastAPI):
     await init_database()
     print("✅ PostgreSQL 初始化完成（checkpoint 表 + 业务表）")
 
-    # ---- ② 种子数据（FAQ 向量库 + 订单/产品）----
+    # ---- ② 种子数据（FAQ + 订单/产品）----
     # seed_all 是幂等的：已有数据会跳过，重启不会重复灌
     from utils.embeddings import AliyunEmbeddings
     from utils.db_init import seed_all
     embeddings = AliyunEmbeddings(model=settings.EMBEDDING_MODEL_NAME)
     await seed_all(
         session_factory=get_session_factory(),
-        chroma_persist_dir=settings.CHROMA_PERSIST_DIR,
         embeddings=embeddings,
     )
 

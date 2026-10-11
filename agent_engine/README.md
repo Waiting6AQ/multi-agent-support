@@ -7,8 +7,8 @@
 - **Coordinator 模式**：ReceptionistAgent 统一接待，JSON Mode 结构化输出，一次调用同时完成意图分类和自然语言回复
 - **多 Agent 协作**：5 个 Agent 各司其职 — 前台接待、技术支持（向量检索 FAQ + Agent Skills 兜底）、订单服务（PostgreSQL）、产品咨询（PostgreSQL）、联网搜索（百度搜索 MCP）
 - **智能路由**：基于意图的条件路由，闲聊/转人工直接回复，业务意图转专业 Agent
-- **混合数据源**：FAQ 用 ChromaDB 向量检索（非结构化语义匹配），订单/产品用 PostgreSQL（结构化精确查询，SQLAlchemy ORM），外部信息走 MCP 百度搜索
-- **质量监控**：LLM 四维度评估回复质量，低分自动升级人工（联网搜索结果跳过质量检查）
+- **混合数据源**：FAQ 用 pgvector 向量检索（PostgreSQL 扩展，语义匹配），订单/产品是同一库里的结构化表（精确查询，SQLAlchemy ORM），外部信息走 MCP 百度搜索
+- **质量监控**：LLM 四维度评估回复质量，低分自动升级人工
 - **多轮对话**：AsyncPostgresSaver 持久化 + `add_messages` 自动管理，上下文截断防止无限增长
 - **Token 级流式输出**：SSE 格式，实时意图反馈 + 打字机效果 + 质量评分
 - **容错与降级**：LLM 网络/限流自动重试 + 备用模型切换，MCP 服务启动/运行时两层降级，各 Agent 独立异常兜底，接待员失败自动转人工，质量评估失败降中性分
@@ -26,8 +26,8 @@
 | 联网搜索   | MCP (百度千帆 web-search 官方服务)，启动/运行时两层降级                          |
 | Agent Skill | Deep Agents SkillsMiddleware + FilesystemBackend，渐进式披露              |
 | Embeddings | DashScope `qwen3.7-text-embedding`                                        |
-| 向量存储   | ChromaDB 本地持久化（FAQ）                                                |
-| 关系数据库 | PostgreSQL 18 + SQLAlchemy 2.0 async ORM（订单、产品、对话元数据）        |
+| 向量检索   | pgvector（PostgreSQL 扩展，向量与业务字段同库同事务）                     |
+| 关系数据库 | PostgreSQL 18 + SQLAlchemy 2.0 async ORM（FAQ、订单、产品、对话元数据）   |
 | 对话持久化 | LangGraph AsyncPostgresSaver                                              |
 | 流式输出   | `get_stream_writer()` + `stream_mode="custom"` + `stream_mode="messages"` |
 | 数据验证   | Pydantic v2                                                               |
@@ -36,7 +36,7 @@
 ## 项目结构
 
 ```
-multi_agent_fastapi/
+agent_engine/
 ├── main.py                     # FastAPI 入口（lifespan 初始化 PG + 种子数据、port 8001）
 ├── core/
 │   ├── config.py               # 配置管理（pydantic-settings）
@@ -54,10 +54,11 @@ multi_agent_fastapi/
 ├── services/
 │   ├── agent_service.py        # LangGraph 多 Agent 编排核心
 │   ├── quality_checker.py      # 回复质量评估（4 维度打分）
+│   ├── faq_service.py          # FAQ 向量检索（pgvector）
 │   └── conversation_service.py # 对话元数据 CRUD
 ├── agents/
 │   ├── receptionist.py         # 前台接待 Agent（JSON Mode）
-│   ├── tech_support.py         # 技术支持 Agent（ChromaDB FAQ + Agent Skill 兜底）
+│   ├── tech_support.py         # 技术支持 Agent（FAQ 向量检索 + Agent Skill 兜底）
 │   ├── order_service.py        # 订单服务 Agent（PostgreSQL 查询）
 │   ├── product_consult.py      # 产品咨询 Agent（PostgreSQL 查询 + 推荐）
 │   └── web_search.py           # 联网搜索 Agent（MCP 百度搜索）
@@ -84,11 +85,12 @@ multi_agent_fastapi/
 
 ```
 START → receptionist → 条件路由
-                          ├── chitchat / escalate → respond → END
+                          ├── chitchat → END（接待员已答复完）
+                          ├── escalate → escalate_final → END
                           └── tech / order / product / web_search
                                   → quality_check → 条件路由
-                                      ├── escalate_final → END
-                                      └── respond → END
+                                      ├── 需转人工 → escalate_final → END
+                                      └── 正常     → END
 ```
 
 | 节点                         | 职责                                                                    |
@@ -97,9 +99,9 @@ START → receptionist → 条件路由
 | `tech_support`               | FAQ 向量检索 → Agent 推理 → FAQ 未命中时加载 Agent Skill 排查流程       |
 | `order_service`              | PostgreSQL 订单查询 / 物流跟踪 → Agent 整理回复                         |
 | `product_consult`            | PostgreSQL 产品搜索 / 预算推荐 → Agent 推荐回复                         |
-| `web_search`                 | MCP 百度搜索 → Agent 整理搜索结果为结构化回复（跳过质量检查）           |
+| `web_search`                 | MCP 百度搜索 → Agent 整理搜索结果为结构化回复                           |
 | `quality_check`              | LLM 四维度评估（相关性/完整性/专业性/有用性），低分标记转人工           |
-| `escalate_final` / `respond` | 标记转人工（前端展示横幅）/ 正常透传                                    |
+| `escalate_final`             | 标记转人工（前端展示横幅，不改回复文字）；正常回复直接结束              |
 
 ## 数据架构
 
@@ -120,8 +122,7 @@ START → receptionist → 条件路由
 └──┬───┘└──┬───┘└──┬───┘└────┬─────┘
    │      │       │         │
    ▼      ▼       ▼         ▼
-ChromaDB PostgreSQL  PostgreSQL  MCP百度搜索
-(FAQ×6)  (订单×3)     (产品×4)    (外部HTTP)
+PostgreSQL（faqs 向量 / 订单 / 产品）    MCP 百度搜索（外部 HTTP）
 ```
 
 ## 快速开始

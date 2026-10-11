@@ -19,7 +19,7 @@
 | -------- | ------------------------------------------------------------------------------------------- |
 | 前端     | Vue 3 / Vite / axios / fetch（SSE 流式读取）                                                |
 | 业务后端 | Spring Boot 3.5 / MyBatis（注解 + XML）/ MySQL / jjwt / spring-security-crypto / RestClient |
-| AI 引擎  | Python FastAPI / LangGraph / LangChain / ChromaDB / DashScope Qwen / MCP                    |
+| AI 引擎  | Python FastAPI / LangGraph / LangChain / PostgreSQL + pgvector / DashScope Qwen / MCP        |
 
 ## 目录结构
 
@@ -49,7 +49,7 @@ Spring Boot 业务后端 (:8082)
     Python 多 Agent 引擎 (:8001)
     │  LangGraph：接待员 → 条件路由 → 专科 Agent → 质量检查 → 转人工判断
     ▼
-PostgreSQL + ChromaDB（checkpoint 多轮上下文 / FAQ 向量索引）
+PostgreSQL（checkpoint 多轮上下文 / FAQ 向量索引，pgvector）
 ```
 
 ## AI 引擎核心链路（agent_engine）

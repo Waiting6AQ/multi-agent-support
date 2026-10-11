@@ -44,6 +44,8 @@ async def init_database() -> None:
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
 
     async with _engine.begin() as conn:
+        # faqs.embedding 是 pgvector 的 VECTOR 类型，得先有扩展才能建那张表
+        await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
         await conn.run_sync(Base.metadata.create_all)
 
 

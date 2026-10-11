@@ -4,12 +4,13 @@
 负责插入模拟数据（DML）。表结构由 models/tables.py 的 ORM 模型定义，
 建表在 core/database.py 的 init_database() 里用 Base.metadata.create_all 完成。
 """
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
+import asyncio
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from models.tables import Order, Product
+from core.config import settings
+from models.tables import Faq, Order, Product
 
 
 # ==================== FAQ 数据 ====================
@@ -119,28 +120,40 @@ PRODUCTS = [
 
 # ==================== 插入函数 ====================
 
-def seed_faq(chroma_persist_dir: str, embeddings) -> None:
-    """将 FAQ 写入 ChromaDB，已有数据则跳过（Chroma 仍是同步 API）"""
-    store = Chroma(
-        persist_directory=chroma_persist_dir,
-        embedding_function=embeddings,
-    )
-    existing = store.get()
-    if existing and existing.get("ids") and len(existing["ids"]) > 0:
-        print(f"ℹ️  FAQ 向量库已有 {len(existing['ids'])} 条数据，跳过初始化")
-        return
+async def seed_faq(session_factory: async_sessionmaker, embeddings) -> None:
+    """把 FAQ 灌进 faqs 表，已有数据则跳过（幂等：重启不会重复灌）
 
-    docs = []
-    for entry in FAQ_ENTRIES:
-        docs.append(Document(
-            page_content=entry["question"],
-            metadata={
-                "answer": entry["answer"],
-                "category": entry["category"],
-            },
-        ))
-    store.add_documents(docs)
-    print(f"✅ FAQ 向量库初始化完成，共 {len(docs)} 条")
+    幂等判据是行数：FAQ_ENTRIES 改了不会更新已有的行，要改数据得先清表。
+    向量和业务字段同一次 commit 落库，不会出现"向量写进去了、内容没写"的半截状态。
+    """
+    async with session_factory() as session:
+        existing = await session.scalar(select(func.count()).select_from(Faq))
+        if existing:
+            print(f"ℹ️  faqs 表已有 {existing} 条数据，跳过初始化")
+            return
+
+        # 一次批量嵌入（方法内部按 20 条分批），比逐条 embed_query 少一堆往返
+        vectors = await asyncio.to_thread(
+            embeddings.embed_documents, [e["question"] for e in FAQ_ENTRIES]
+        )
+        if vectors and len(vectors[0]) != settings.EMBEDDING_DIM:
+            # 换过嵌入模型才会走到这里。早抛：用错维度的向量把表写坏，比启动失败难查得多
+            raise RuntimeError(
+                f"嵌入维度与配置不符：模型返回 {len(vectors[0])} 维，"
+                f"EMBEDDING_DIM={settings.EMBEDDING_DIM}"
+            )
+
+        session.add_all(
+            Faq(
+                question=entry["question"],
+                answer=entry["answer"],
+                category=entry["category"],
+                embedding=vec,
+            )
+            for entry, vec in zip(FAQ_ENTRIES, vectors, strict=True)
+        )
+        await session.commit()
+    print(f"✅ faqs 表初始化完成，共 {len(FAQ_ENTRIES)} 条")
 
 
 async def seed_orders(session_factory: async_sessionmaker) -> None:

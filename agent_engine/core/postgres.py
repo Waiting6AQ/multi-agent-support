@@ -19,8 +19,8 @@ from core.config import settings
 
 _pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None
-# 并发首次请求时避免重复建池。注意是 asyncio.Lock——不能和 dependencies.py 里
-# 给同步 Chroma 用的 threading.Lock 混用（后者在 async 函数里会阻塞事件循环）
+# 并发首次请求时避免重复建池。用 asyncio.Lock 而不是 threading.Lock：
+# 后者在 async 函数里会阻塞事件循环
 _init_lock = asyncio.Lock()
 
 

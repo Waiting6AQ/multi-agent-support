@@ -15,9 +15,11 @@ services:
       timeout: 3s
       retries: 10
 
-  # 引擎的会话状态（LangGraph checkpoint）与业务数据（对话/订单/产品）
+  # 引擎的会话状态（LangGraph checkpoint）与业务数据（对话/订单/产品/FAQ）
   postgres:
-    image: postgres:18
+    # 官方 postgres:18 装好 pgvector 扩展的镜像：faqs.embedding 这个向量列需要它。
+    # 同大版本、同数据目录布局，已有的 pg-data 卷可以直接复用，不用清空
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_USER: ${PG_USER:-engine}
       # ⚠️ 密码含 @ : / 等特殊字符时需 URL 编码，否则 DSN 解析会出错
@@ -47,9 +49,6 @@ services:
       QIANFAN_API_KEY: ${QIANFAN_API_KEY:-}
       # 会话状态 + 业务数据都在 PG（容器内没有 localhost，走服务名 postgres）
       POSTGRES_DSN: postgresql://${PG_USER:-engine}:${PG_PASSWORD:?}@postgres:5432/agent_engine
-    # 数据卷：只剩 FAQ 向量库（checkpoint 和业务数据已迁到 PostgreSQL）
-    volumes:
-      - engine-data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,5 +82,4 @@ services:
 
 volumes:
   mysql-data:
-  engine-data:
   pg-data:

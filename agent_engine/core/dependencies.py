@@ -7,10 +7,7 @@ async 依赖会自动被 await。
 单例模式：通过模块级缓存变量确保昂贵资源只初始化一次。
 """
 import asyncio
-import threading
 import time
-
-from langchain_chroma import Chroma
 
 from core.config import settings, MCP_SERVERS
 from core.database import get_session_factory
@@ -20,6 +17,7 @@ from utils.llm import create_llm, create_json_llm, create_raw_llm
 from utils.embeddings import AliyunEmbeddings
 from services.quality_checker import QualityChecker
 from services.conversation_service import ConversationService
+from services.faq_service import FaqService
 from services.agent_service import AgentService
 from agents.tech_support import TechSupportAgent
 from agents.order_service import OrderServiceAgent
@@ -32,7 +30,6 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 _embeddings = None
 _llm = None
-_chroma_for_faq = None
 _json_llm = None
 _receptionist = None
 _quality_checker = None
@@ -42,15 +39,13 @@ _product_agent = None
 _web_agent = None
 _agent_service = None
 _conversation_service = None
+_faq_service = None
 
 # MCP 加载失败后的冷却：冷却期内直接用降级实例，不再去撞网络
 _web_agent_retry_after = 0.0
 MCP_RETRY_COOLDOWN = 60.0       # 秒
 
-# 两种锁各管一类，不能混用：
-# - threading.Lock 给同步单例（Chroma 的 PersistentClient 并发创建会破坏其进程级注册表）
-# - asyncio.Lock 给异步单例（构造里有 await，用 threading.Lock 会阻塞事件循环）
-_singleton_lock = threading.Lock()
+# 异步单例的初始化锁（构造里有 await，不能省——详见 get_agent_service / get_web_agent）
 _service_init_lock = asyncio.Lock()
 
 
@@ -70,24 +65,6 @@ def get_llm():
     if _llm is None:
         _llm = create_llm()
     return _llm
-
-
-def get_chroma_for_faq():
-    """FAQ 检索用 ChromaDB 实例
-
-    双重检查 + 锁：sync 依赖跑在线程池里，并发首次请求会同时走到 check-then-act，
-    两个线程对同一路径并发创建 PersistentClient 会破坏 chromadb 的进程级注册表
-    （此后进程内所有 Chroma 操作全废）。
-    """
-    global _chroma_for_faq
-    if _chroma_for_faq is None:
-        with _singleton_lock:
-            if _chroma_for_faq is None:
-                _chroma_for_faq = Chroma(
-                    persist_directory=settings.CHROMA_PERSIST_DIR,
-                    embedding_function=get_embeddings(),
-                )
-    return _chroma_for_faq
 
 
 # ==================== 业务组件 ====================
@@ -116,6 +93,17 @@ def get_quality_checker() -> QualityChecker:
     return _quality_checker
 
 
+def get_faq_service() -> FaqService:
+    """FAQ 检索服务单例"""
+    global _faq_service
+    if _faq_service is None:
+        _faq_service = FaqService(
+            session_factory=get_session_factory(),
+            embeddings=get_embeddings(),
+        )
+    return _faq_service
+
+
 def get_tech_agent() -> TechSupportAgent:
     """技术支持 Agent 单例"""
     global _tech_agent
@@ -124,7 +112,7 @@ def get_tech_agent() -> TechSupportAgent:
             # create_deep_agent 不兼容 with_retry 包装对象，
             # 用原始模型实例，重试由 Deep Agents 内置机制处理
             llm=create_raw_llm(),
-            chroma_store=get_chroma_for_faq(),
+            faq_service=get_faq_service(),
         )
     return _tech_agent
 

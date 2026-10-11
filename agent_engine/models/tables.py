@@ -8,9 +8,12 @@ SQLAlchemy ORM 模型（业务表）
 from datetime import datetime
 from decimal import Decimal
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, Index, Integer, Numeric, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from core.config import settings
 
 
 class Base(DeclarativeBase):
@@ -74,3 +77,24 @@ class Product(Base):
 
     # get_recommendations 按 品类 + 价格 过滤后按评分排序
     __table_args__ = (Index("products_category_price_idx", "category", "price"),)
+
+
+class Faq(Base):
+    """常见问题（技术支持 Agent 的 search_faq 工具查询用）"""
+
+    __tablename__ = "faqs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # 唯一约束：问题文本是这条 FAQ 的业务标识，重复灌入能被数据库拦下
+    question: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    answer: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(Text, nullable=False, server_default="常见问题")
+    # pgvector 的向量列必须定长，长度见 settings.EMBEDDING_DIM
+    embedding: Mapped[list[float]] = mapped_column(
+        Vector(settings.EMBEDDING_DIM), nullable=False
+    )
+
+    # 数据量小的时候顺序扫描比走索引快，这里先不建 HNSW 索引；数据量大了再补：
+    # Index("faqs_embedding_idx", "embedding",
+    #       postgresql_using="hnsw",
+    #       postgresql_ops={"embedding": "vector_cosine_ops"})

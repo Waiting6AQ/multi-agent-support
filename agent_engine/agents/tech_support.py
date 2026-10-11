@@ -2,7 +2,7 @@
 技术支持 Agent
 
 负责技术问题、故障排除。
-- 工具：search_faq（ChromaDB FAQ 向量检索）
+- 工具：search_faq（FAQ 向量检索，PostgreSQL + pgvector）
 - Skill：support-workflow（完整工作流：FAQ 检索 → 分支 → 结构化排查）
 使用 Deep Agents 框架的 SkillsMiddleware 实现渐进式披露。
 """
@@ -25,21 +25,16 @@ class TechSupportAgent:
 如果未找到匹配结果，加载对应 Skill 并按其中的排查流程处理。
 回复要专业、耐心、易懂。"""
 
-    def __init__(self, llm, chroma_store):
-        self.chroma_store = chroma_store
+    def __init__(self, llm, faq_service):
+        self.faq_service = faq_service
 
         @tool
-        def search_faq(problem_type: str) -> str:
+        async def search_faq(problem_type: str) -> str:
             """搜索常见技术问题解答，problem_type 为问题类型关键词（如'蓝牙连接''充电''无法开机'等）"""
-            docs = self.chroma_store.similarity_search(problem_type, k=3)
-            if not docs:
+            hits = await self.faq_service.search(problem_type)
+            if not hits:
                 return "FAQ 未找到匹配结果。"
-            results = []
-            for i, doc in enumerate(docs):
-                answer = doc.metadata.get("answer", doc.page_content)
-                category = doc.metadata.get("category", "常见问题")
-                results.append(f"【{category}】{answer}")
-            return "\n---\n".join(results)
+            return "\n---\n".join(f"【{h.category}】{h.answer}" for h in hits)
 
         self.agent = create_deep_agent(
             model=llm,

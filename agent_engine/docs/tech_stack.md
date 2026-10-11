@@ -12,8 +12,8 @@
 | 联网搜索 | MCP (百度千帆 web-search) | WebSearchAgent 通过 MCP 协议接入，每日 50 次免费额度 |
 | Agent Skills | Deep Agents SkillsMiddleware | TechSupportAgent FAQ 未命中时渐进式加载排查规范 |
 | Embeddings | DashScope text-embedding-v4 | FAQ 向量嵌入 |
-| 向量数据库 | ChromaDB | FAQ 本地持久化向量检索 |
-| 关系数据库 | PostgreSQL 18 | 订单、产品、对话元数据，SQLAlchemy 2.0 async ORM + psycopg 驱动 |
+| 向量检索 | pgvector（PostgreSQL 扩展） | FAQ 向量检索；向量与业务字段同表、同事务 |
+| 关系数据库 | PostgreSQL 18 | FAQ、订单、产品、对话元数据，SQLAlchemy 2.0 async ORM + psycopg 驱动 |
 | 对话持久化 | LangGraph AsyncPostgresSaver | 多轮对话状态持久化 |
 | 数据验证 | Pydantic 2.x | 请求/响应模型 |
 | 配置 | pydantic-settings | .env 环境变量加载 |

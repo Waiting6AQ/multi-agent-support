@@ -16,11 +16,11 @@
 
 ### Agent
 - 前台接待 Agent：JSON Mode 意图分类 + 闲聊/转人工自然语言回复
-- 技术支持 Agent：FAQ 向量检索（ChromaDB）
+- 技术支持 Agent：FAQ 向量检索（PostgreSQL + pgvector）
 - 订单服务 Agent：订单查询、物流跟踪（PostgreSQL）
 - 产品咨询 Agent：产品搜索、预算推荐（PostgreSQL）
 - 联网搜索 Agent：接入百度搜索 MCP 服务，外部品牌/参数/行情
-- 质量检查 + 人工升级（联网搜索跳过质量检查）
+- 质量检查 + 人工升级
 - Agent Skills：技术支持 FAQ 未命中时，按需加载 Skill 专家排查规范
 
 ### API
@@ -38,7 +38,7 @@
 
 ## 非功能需求
 
-- 数据持久化（ChromaDB + PostgreSQL + AsyncPostgresSaver）
+- 数据持久化（PostgreSQL：业务表 + pgvector 向量，对话状态另用 AsyncPostgresSaver）
 - 模块化分层架构（core/models/routers/services/agents/utils）
 - 中文注释和文档
 - 环境变量配置（pydantic-settings）

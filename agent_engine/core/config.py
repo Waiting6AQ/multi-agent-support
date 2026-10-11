@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     LLM_BACKUP_MODEL_NAME: str = "openai:qwen3.7-max-2026-05-20"
     LLM_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     EMBEDDING_MODEL_NAME: str = "qwen3.7-text-embedding"
+    # 嵌入维度：faqs.embedding 的列宽（pgvector 的向量列必须定长）。
+    # 1024 是实测值——嵌入模型的实际输出维度，RAG 项目的向量库同样是这个维度
+    EMBEDDING_DIM: int = 1024
 
     # === 百度千帆 API（联网搜索 MCP 鉴权） ===
     # 默认空串：未配置时 MCP 连不上走降级，不影响服务启动
@@ -31,6 +34,9 @@ class Settings(BaseSettings):
     INTENT_CONFIDENCE_THRESHOLD: float = 0.6  # 意图置信度低于此值直接转人工
     QUALITY_SCORE_THRESHOLD: float = 0.6      # 质量评分低于此值升级人工
     FAQ_TOP_K: int = 3                        # FAQ 向量检索返回数量
+    # 余弦距离上限（0 = 完全相同）：超过它就算"没找到"，退回 skill 排查流程。
+    # 0.4 取自实测——库内问题的距离在 0.23 以内，库外问题在 0.55 以上
+    FAQ_MAX_DISTANCE: float = 0.4
 
     # === PostgreSQL（会话状态 + 业务数据） ===
     # 必填：不配则启动即报错（fail-fast，与 DASHSCOPE_API_KEY 一致）
@@ -40,7 +46,6 @@ class Settings(BaseSettings):
     PG_POOL_MAX: int = 10          # psycopg 池上限
 
     # === 存储路径（基于项目根目录） ===
-    CHROMA_PERSIST_DIR: str = str(BASE_DIR / "data" / "chroma_db")
     SKILLS_DIR: str = str(BASE_DIR / "skills")
 
     class Config:

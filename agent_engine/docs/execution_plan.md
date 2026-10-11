@@ -17,9 +17,9 @@
 - [x] `models/conversation.py`（对话管理模型）
 
 ## Phase 4: Agent 定义 ✅
-- [x] `agents/tech_support.py`（search_faq → ChromaDB）
-- [x] `agents/order_service.py`（query_order, track_shipping → SQLite）
-- [x] `agents/product_consult.py`（search_product, get_recommendations → SQLite）
+- [x] `agents/tech_support.py`（search_faq → PostgreSQL + pgvector）
+- [x] `agents/order_service.py`（query_order, track_shipping → PostgreSQL）
+- [x] `agents/product_consult.py`（search_product, get_recommendations → PostgreSQL）
 
 ## Phase 5: 服务层 ✅
 - [x] `services/intent_classifier.py`（意图分类器）
