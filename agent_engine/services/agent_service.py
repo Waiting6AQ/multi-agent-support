@@ -16,7 +16,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.config import get_stream_writer
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from core.config import settings
 from models.chat import ChatResponse
@@ -34,23 +34,29 @@ def _turn_input(message: str) -> dict:
     """
     return {
         "messages": [HumanMessage(content=message)],
-        "intent": "",
+        # 路由判据：None = 本轮还没产出（和"判定为否"是两回事）
+        "intent": None,
+        "needs_escalation": None,
+        # 报告值：0.0 / "" 本来就表示"还没有"，不需要三态
         "confidence": 0.0,
         "agent_response": "",
         "quality_score": 0.0,
-        "needs_escalation": False,
         "escalation_reason": "",
     }
 
 
 class AgentState(TypedDict):
-    """LangGraph 多 Agent 客服系统状态"""
+    """LangGraph 多 Agent 客服系统状态
+
+    两个路由判据（intent / needs_escalation）用 None 表示"本轮尚未产出"，和
+    "判定为否"区分开——布尔类型只有两个取值，所以要声明成 bool | None。
+    """
     messages: Annotated[list, add_messages]      # add_messages 自动管理对话历史
-    intent: str                                  # tech_support | order_service | product_consult | escalate
+    intent: str | None                           # tech_support | ... | escalate；None = 本轮尚未分类
     confidence: float                            # 意图分类置信度 0-1
     agent_response: str                          # 专业 Agent 的回答
     quality_score: float                         # 质量评分 0-1
-    needs_escalation: bool                       # 是否需要转人工
+    needs_escalation: bool | None                # None = 本轮尚未判定
     escalation_reason: str                       # 转人工原因
 
 
@@ -61,9 +67,10 @@ class AgentService:
     多 Agent 客服系统总控
 
     LangGraph 流程：
-      START → receptionist → route
-        → respond(chitchat/escalate) / tech_support / order_service / product_consult / web_search
-        → quality_check → should_escalate → escalate_final / respond → END
+      START → receptionist → 条件路由
+        → END(闲聊) / escalate_final(转人工)
+        / tech_support / order_service / product_consult / web_search
+        → quality_check → 条件路由 → escalate_final / END
     """
 
     def __init__(self, llm, checkpointer: AsyncPostgresSaver,
@@ -92,7 +99,6 @@ class AgentService:
         builder.add_node("web_search", self._node_web_search)
         builder.add_node("quality_check", self._node_quality_check)
         builder.add_node("escalate_final", self._node_escalate_final)
-        builder.add_node("respond", self._node_respond)
 
         builder.add_edge(START, "receptionist")
 
@@ -105,26 +111,27 @@ class AgentService:
                 "product_consult": "product_consult",
                 "web_search": "web_search",
                 "escalate_final": "escalate_final",
-                "respond": "respond",
+                "respond": END,      # 闲聊：接待员已答复完，直接结束
             }
         )
 
+        # 四个专业 Agent 统一过质量检查：评分的四个维度（相关性/完整性/专业性/有用性）
+        # 都不需要原始资料——判的是"回复相对问题好不好"，工具返回的内容是否属实不在其列
         builder.add_edge("tech_support", "quality_check")
         builder.add_edge("order_service", "quality_check")
         builder.add_edge("product_consult", "quality_check")
-        builder.add_edge("web_search", "respond")  # 联网搜索结果无法被本地 LLM 验证，跳过质量检查
+        builder.add_edge("web_search", "quality_check")
 
         builder.add_conditional_edges(
             "quality_check",
             self._should_escalate,
             {
                 "escalate_final": "escalate_final",
-                "respond": "respond",
+                "respond": END,      # 正常回复：没有额外处理，直接结束
             }
         )
 
         builder.add_edge("escalate_final", END)
-        builder.add_edge("respond", END)
 
         return builder.compile(checkpointer=self.checkpointer)
 
@@ -132,18 +139,19 @@ class AgentService:
 
     async def _node_receptionist(self, state: AgentState) -> dict:
         """节点1：前台接待 — 意图分类 + 闲聊/转人工时直接生成回复（async — LLM 异步调用）"""
-        user_msg = state["messages"][-1].content
         writer = get_stream_writer()
         writer({"event": "progress", "data": "前台接待中"})
 
-        # 构建消息：system + 上一条 AI 回复（帮助理解用户简短的指代追问） + 当前用户消息
+        # 直接传消息对象，不做角色转换：历史里 HumanMessage / AIMessage 的角色本来就是对的
+        # （包括"上一轮中途失败、只留下一条用户消息"这种情况）。手工转成 dict 并写死
+        # "assistant" 反而会写错，还得再补一层类型判断
+        #
+        # 只回看最近 3 条：接待员是每轮必经的第一步，历史越长意图分类越慢。
+        # 3 条足够覆盖上一次成功的 AI 回复——而"失败轮"是连上下文都断光的那种
         messages = [
-            {"role": "system", "content": self.receptionist.SYSTEM_PROMPT},
+            SystemMessage(content=self.receptionist.SYSTEM_PROMPT),
+            *state["messages"][-3:],        # 最后一条就是当前问题
         ]
-        if len(state["messages"]) >= 2:
-            prev_ai = state["messages"][-2]  # 上一条是 AIMessage
-            messages.append({"role": "assistant", "content": prev_ai.content})
-        messages.append({"role": "user", "content": user_msg})
         result = await self.receptionist.classify(messages)
         intent = result["intent"]
         confidence = result["confidence"]
@@ -176,7 +184,12 @@ class AgentService:
         "escalate_final", "respond"
     ]:
         """条件路由：业务意图送专业 Agent；闲聊走 respond；转人工走 escalate_final"""
-        intent = state["intent"]
+        intent = state.get("intent")
+        if intent is None:
+            # 接待员每条路径都会写 intent，为 None 说明节点没跑或漏写。
+            # 这里不能兜底成"正常回复"——那会给用户一条空消息（agent_response 本轮还是 ""），
+            # 比报错更糟。抛出去让它可见
+            raise RuntimeError("receptionist 未设置 intent：图结构或节点返回值有误")
         # 转人工必须走 escalate_final——那个节点负责把 needs_escalation 置为 True。
         # 走 respond 的话会被它覆盖成 False（它只做"正常回复"），前端横幅就永远不显示
         if intent == "escalate":
@@ -244,7 +257,6 @@ class AgentService:
         return {
             "agent_response": reply,
             "messages": [AIMessage(content=reply)],
-            "needs_escalation": False,  # 每轮重置，防止上一轮的转人工标记残留
         }
 
     async def _node_web_search(self, state: AgentState) -> dict:
@@ -264,8 +276,6 @@ class AgentService:
         return {
             "agent_response": reply,
             "messages": [AIMessage(content=reply)],
-            "needs_escalation": False,  # 联网搜索跳过质量检查，手动重置
-            "quality_score": 0.0,
         }
 
     async def _node_quality_check(self, state: AgentState) -> dict:
@@ -275,8 +285,11 @@ class AgentService:
 
         # messages[-1] 是 Agent 刚追加的 AIMessage，-2 才是用户消息
         user_msg = state["messages"][-2].content
+        # 带最近 2 轮历史（不含当前问答）：用户常省略主语地问（"那它有现货吗"），
+        # 判官没有历史就判不了"回复是否针对用户问题"
+        history = state["messages"][:-2][-4:]
         result = await self.quality_checker.check(
-            user_msg, state["agent_response"]
+            user_msg, state["agent_response"], history
         )
         total_score = result.get("total_score", 60)
         # 将百分制转为 0-1
@@ -294,21 +307,23 @@ class AgentService:
         "escalate_final", "respond"
     ]:
         """条件路由：质量不达标或 LLM 标记转人工 → escalate_final，否则正常回复"""
-        if state.get("needs_escalation", False):
+        needs_escalation = state.get("needs_escalation")
+        if needs_escalation is None:
+            # 质量检查没跑（图结构被改坏了）。不抛——它不是唯一判据：下面的分数判断仍然有效，
+            # 而且 quality_score 每轮初值是 0.0，会落到"转人工"这条安全路。
+            # （对比 _route_by_receptionist：那里 intent 缺失只能兜底成空消息，所以才抛）
+            print("⚠️ quality_check 未设置 needs_escalation，仅按分数判断")
+        elif needs_escalation:
             return "escalate_final"
         if state.get("quality_score", 0.0) < settings.QUALITY_SCORE_THRESHOLD:
             return "escalate_final"
         return "respond"
 
     def _node_escalate_final(self, state: AgentState) -> dict:
-        """节点5a：标记转人工（前端展示横幅，后端不修改回复文字）"""
+        """节点5：标记转人工（前端展示横幅，后端不修改回复文字）"""
         return {
             "needs_escalation": True,
         }
-
-    def _node_respond(self, state: AgentState) -> dict:
-        """节点5b：正常回复，透传不做修改"""
-        return {"needs_escalation": False}
 
     # ==================== 公开接口 ====================
 

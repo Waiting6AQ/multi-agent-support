@@ -3,7 +3,6 @@
     <div class="login-card">
       <div class="login-logo">🤖</div>
       <h1>多 Agent 智能客服系统</h1>
-      <p class="sub">Multi-Agent · Spring Boot + Python AI</p>
 
       <div class="tabs">
         <button :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
@@ -86,8 +85,7 @@ async function submit() {
 }
 
 .login-logo { font-size: 44px; margin-bottom: 8px; }
-h1 { font-size: 20px; color: var(--text-main); font-weight: 700; }
-.sub { font-size: 12px; color: var(--text-muted); margin: 6px 0 24px; }
+h1 { font-size: 20px; color: var(--text-main); font-weight: 700; margin: 0 0 24px; }
 
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .tabs button {
