@@ -152,7 +152,7 @@ docker compose logs -f backend    # 看到"已创建默认管理员账号 admin"
 访问 `http://localhost:8080`（nginx 托管前端 + 代理 /api，无跨域）；后端 API 也可直连 `http://localhost:8082`。
 
 - **架构落地**：mysql/engine 不暴露宿主端口（"Python 不出内网"在部署层生效），容器间用服务名互访
-- **数据**：账号/会话/消息在 mysql 卷；引擎的 FAQ 向量库在 engine-data 卷；会话状态与业务数据在 pg-data 卷——`down` 全部保留，`down -v` 才清空
+- **数据**：账号/会话/消息在 mysql 卷；会话状态、业务数据与 FAQ 向量都在 pg-data 卷——`down` 全部保留，`down -v` 才清空
 - **结束**：`docker compose stop`（保留现场，下次秒开）或 `docker compose down`
 
 ### 镜像化部署（服务器）
@@ -182,8 +182,9 @@ docker compose -f docker-compose.prod.yml up -d   # 自动拉取镜像并启动
 #   覆盖：JWT 签发/过期/伪造签名、会话归属校验（防越权）、落库内容与标题规则
 cd backend && .\mvnw.cmd test
 
-# AI 引擎：pytest（11 个用例）
-#   覆盖：LLM 输出的 JSON 解析兜底（Markdown 包裹）、种子数据幂等性
+# AI 引擎：pytest（15 个用例）
+#   覆盖：LLM 输出的 JSON 解析兜底（Markdown 包裹）、种子数据幂等性、
+#         FAQ 检索的距离排序与阈值过滤
 cd agent_engine
 pip install -r requirements-dev.txt          # 仅测试依赖，不进生产镜像
 python -m pytest tests -q
