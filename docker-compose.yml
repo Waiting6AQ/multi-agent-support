@@ -57,8 +57,8 @@ services:
 
   backend:
     build: ./backend
-    ports:
-      - "8082:8082"
+    # 不映射宿主端口：API 只经前端 nginx 的同源代理进来（backend:8082 走 Docker 内网）。
+    # 需要直接从宿主机调接口调试时，临时加 "8082:8082"，或 docker compose exec frontend curl backend:8082/api/...
     environment:
       DB_PASSWORD: ${DB_PASSWORD:?}
       # 容器内没有 localhost：JDBC 走服务名 mysql（本地开发默认 localhost）
@@ -76,7 +76,8 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "8080:80"
+      # 唯一对宿主机开放的端口。可配：Windows 上 8080 也可能落在系统保留段里（compose 前设 FRONTEND_PORT）
+      - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       - backend
 
