@@ -25,6 +25,7 @@
 
       <!-- 账号操作独立成区，不混在"快速体验"里 -->
       <div class="sidebar-account">
+        <button v-if="isAdmin" class="sidebar-link" @click="router.push('/admin')">⚙️ 后台管理</button>
         <button class="logout-btn" @click="logout()">🚪 退出登录</button>
       </div>
     </div>
@@ -36,6 +37,10 @@
         <div class="agent-info">
           <h3>{{ topbar.name }}</h3>
           <span>在线</span>
+        </div>
+        <div class="topbar-user" :title="isAdmin ? '管理员' : '普通用户'">
+          👤 {{ username }}
+          <span v-if="isAdmin" class="user-role">管理员</span>
         </div>
       </div>
 
@@ -98,6 +103,10 @@ import MessageItem from '../components/MessageItem.vue'
 import ChatInput from '../components/ChatInput.vue'
 
 const router = useRouter()
+// 管理入口只对管理员显示；真正的权限校验在后端 @RequireAdmin
+const isAdmin = localStorage.getItem('roleCode') === 'ADMIN'
+// 顶栏显示当前账号，多账号测试时不用猜自己登的是谁
+const username = localStorage.getItem('username') || ''
 const route = useRoute()
 
 const sessions = ref([])
@@ -239,6 +248,9 @@ function quickAsk(text) {
 
 function logout() {
   localStorage.removeItem('token')
+  localStorage.removeItem('username')
+  localStorage.removeItem('roleCode')
+  localStorage.removeItem('userId')
   router.push('/login')
 }
 

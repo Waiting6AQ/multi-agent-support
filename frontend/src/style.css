@@ -163,6 +163,24 @@ body {
 }
 .sidebar-account .logout-btn:hover { background: rgba(229, 83, 75, .08); color: var(--danger); }
 
+/* 侧边栏里的功能入口（FAQ 管理等），与"退出登录"同一区域但用主题色 */
+.sidebar-account .sidebar-link {
+  display: block;
+  width: 100%;
+  margin-bottom: 2px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.sidebar-account .sidebar-link:hover { background: var(--primary-soft); color: var(--primary); }
+
 /* ==================== 主区域 ==================== */
 /* position: relative —— 给"回到底部"按钮做定位父元素 */
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
@@ -188,6 +206,23 @@ body {
 .topbar .agent-info h3 { font-size: 14px; color: var(--text-main); font-weight: 600; }
 .topbar .agent-info span { font-size: 12px; color: var(--success); }
 .topbar .agent-info span::before { content: "● "; }
+
+/* 右上角当前账号：多账号切换测试时一眼能看出登的是谁 */
+.topbar-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.topbar-user .user-role {
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 11px;
+}
 
 /* 聊天区 */
 .chat-area {
@@ -532,3 +567,105 @@ body {
   margin: 8px 0;
   color: var(--text-secondary);
 }
+
+/* ==================== 后台管理 ==================== */
+/* 两个标签页（技术支持 FAQ / 用户管理）共用的骨架样式 */
+.admin-panel { display: flex; flex-direction: column; gap: 14px; }
+
+.admin-note {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--primary-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.admin-note strong { color: var(--primary); }
+
+.admin-toolbar { display: flex; align-items: center; gap: 10px; }
+.admin-toolbar .spacer { flex: 1; }
+.admin-toolbar input {
+  width: 320px;
+  max-width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-main);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.admin-toolbar input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, .15);
+}
+
+.admin-hint { padding: 48px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+.admin-hint.is-error { color: var(--danger); }
+
+.admin-table-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.admin-table th {
+  padding: 10px 14px;
+  text-align: left;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.admin-table tbody tr:last-child td { border-bottom: none; }
+.admin-table tbody tr:hover td { background: #fafbff; }
+
+.admin-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary-gradient);
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.admin-btn:hover:not(:disabled) { opacity: .92; }
+.admin-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.admin-ghost-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.admin-ghost-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.admin-link-btn {
+  padding: 4px 6px;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.admin-link-btn:hover { text-decoration: underline; }
+.admin-link-btn.is-danger { color: var(--danger); }

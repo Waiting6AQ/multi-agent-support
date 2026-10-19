@@ -20,7 +20,7 @@ import os
 import sys
 
 from core.config import settings
-from routers import chat, conversations
+from routers import chat, conversations, faqs
 
 # ==================== 控制台编码兼容 ====================
 
@@ -97,6 +97,7 @@ app.add_middleware(
 
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["Conversations"])
+app.include_router(faqs.router, prefix="/api/v1/faqs", tags=["FAQ"])
 
 # ==================== 静态文件 ====================
 
