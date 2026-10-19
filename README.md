@@ -5,11 +5,13 @@
 ## 特性
 
 - **Java 业务系统 + Python AI 服务（服务化架构）**：Java 网关统一对外（鉴权/审计/转发），Python 引擎作为独立部署的内部能力层，通过 HTTP 契约集成
-- **JWT 无状态认证**：jjwt 签发/校验 + BCrypt 密码哈希，简化 RBAC（user/role 两张表），拦截器统一鉴权
+- **JWT 无状态认证**：jjwt 签发/校验 + BCrypt 密码哈希，简化 RBAC（user/role 两张表），拦截器统一鉴权，`@RequireAdmin` 标注管理员接口
 - **会话归属隔离**：业务侧自持会话记录（chat_session + chat_message），用户只能看到自己的会话，列表/详情/删除/聊天全链路校验
-- **用户归属在业务侧，AI 引擎不感知用户**：user_id ↔ conversation_id 映射存于业务 MySQL；引擎仅按 conversation_id 维护多轮上下文（checkpoint，会话级状态，无用户体系）；转发时网关注入 `X-User-Id` 可信头，预留数据隔离/审计
+- **身份与归属**：会话归属在业务 MySQL（user_id ↔ conversation_id），引擎仅按 conversation_id 维护多轮上下文（checkpoint，会话级状态，无用户体系）；转发时网关注入 `X-User-Id` 可信头，预留数据隔离/审计
 - **SSE 流式透传**：Spring 用 `StreamingResponseBody` + `RestClient` 对引擎 SSE 流做逐行原样透传（只劫持 done 事件附加 session_id），前端逐 token 渲染打字机效果 + 实时意图反馈
 - **意图标签留存**：每轮回复的意图分类业务侧落库，可审计可统计（引擎侧不保留历史意图）
+- **FAQ 管理**：管理员在后台维护技术支持 FAQ，新增/修改时自动生成或更新向量，改完立即生效
+- **后台管理**：`@RequireAdmin` 统一校验管理员权限；用户列表与删除（级联清会话、消息与引擎侧对话，不能删自己）
 - **容错降级**：AI 服务超时/不可达返回友好提示而非 500；客户端断连静默处理；全局异常统一 `Result` 结构
 - **AI 引擎完整能力**：多 Agent 编排（意图路由 + 专科 Agent + 质量评估），见下方「AI 引擎核心链路」（引擎内部细节见 `agent_engine/README.md`）
 
@@ -43,6 +45,7 @@ agent_system/
 Spring Boot 业务后端 (:8082)
     ├─ 用户体系：注册/登录/角色（user + role）
     ├─ 会话管理：chat_session + chat_message（业务侧审计记录）
+    ├─ 后台管理：/api/faqs（FAQ 维护）、/api/users（用户列表 / 删除），均限管理员
     ├─ 转发：/api/chat（非流式）、/api/chat/stream（SSE 透传）
     │      │  内部 HTTP（X-User-Id 可信头）
     │      ▼
@@ -133,6 +136,12 @@ npm run dev
 | GET    | /api/sessions      | 会话列表（分页，仅当前用户）  |
 | GET    | /api/sessions/{id} | 会话详情（含消息 + 意图标签） |
 | DELETE | /api/sessions/{id} | 删除会话（级联删消息）        |
+| GET    | /api/faqs          | FAQ 列表（仅管理员）          |
+| POST   | /api/faqs          | 新增 FAQ（仅管理员）          |
+| PUT    | /api/faqs/{id}     | 修改 FAQ（仅管理员，问题变了重算向量） |
+| DELETE | /api/faqs/{id}     | 删除 FAQ（仅管理员）          |
+| GET    | /api/users         | 用户列表（仅管理员）          |
+| DELETE | /api/users/{id}    | 删除用户（仅管理员，级联清会话） |
 | POST   | /api/chat          | 聊天（非流式，落库）          |
 | POST   | /api/chat/stream   | 聊天（SSE 流式，打字机效果）  |
 
@@ -178,8 +187,9 @@ docker compose -f docker-compose.prod.yml up -d   # 自动拉取镜像并启动
 单元测试聚焦**安全边界与易错分支**（不追求覆盖率），全部用 mock / fake 隔离外部依赖，不依赖数据库、网络与真实向量库，可秒级跑完。
 
 ```bash
-# 业务后端：JUnit 5 + Mockito（11 个用例）
-#   覆盖：JWT 签发/过期/伪造签名、会话归属校验（防越权）、落库内容与标题规则
+# 业务后端：JUnit 5 + Mockito（15 个用例）
+#   覆盖：JWT 签发/过期/伪造签名、会话归属校验（防越权）、@RequireAdmin 权限门槛、
+#         落库内容与标题规则
 cd backend && .\mvnw.cmd test
 
 # AI 引擎：pytest（15 个用例）

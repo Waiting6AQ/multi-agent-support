@@ -2,6 +2,7 @@ package com.agentadmin.controller;
 
 import com.agentadmin.common.Result;
 import com.agentadmin.config.JwtInterceptor;
+import com.agentadmin.dto.ChangePasswordRequest;
 import com.agentadmin.dto.LoginRequest;
 import com.agentadmin.dto.LoginResponse;
 import com.agentadmin.dto.RegisterRequest;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,5 +40,14 @@ public class AuthController {
     public Result<User> me(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute(JwtInterceptor.ATTR_USER_ID);
         return Result.ok(authService.getById(userId));
+    }
+
+    /** 修改密码（验证当前密码后写入新哈希） */
+    @PutMapping("/password")
+    public Result<Void> changePassword(HttpServletRequest request,
+                                       @Valid @RequestBody ChangePasswordRequest req) {
+        Long userId = (Long) request.getAttribute(JwtInterceptor.ATTR_USER_ID);
+        authService.changePassword(userId, req.getOldPassword(), req.getNewPassword());
+        return Result.ok();
     }
 }

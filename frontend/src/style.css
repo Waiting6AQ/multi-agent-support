@@ -128,6 +128,15 @@ body {
 .conv-item .del:hover { color: var(--danger); background: rgba(229, 83, 75, .1); }
 
 .sidebar-footer { padding: 14px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+.sidebar-footer .scene-label { display: flex; align-items: center; }
+/* 侧边栏入口的内联图标：尺寸统一，颜色跟随文字 */
+.ico {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-right: 6px;
+  vertical-align: -3px;
+}
 .sidebar-footer .scene {
   display: block;
   width: 100%;
@@ -147,23 +156,8 @@ body {
 
 /* 账号操作：独立成区，不混在"快速体验"里 */
 .sidebar-account { padding: 10px 12px; border-top: 1px solid var(--border); }
-.sidebar-account .logout-btn {
-  display: block;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background .15s, color .15s;
-}
-.sidebar-account .logout-btn:hover { background: rgba(229, 83, 75, .08); color: var(--danger); }
 
-/* 侧边栏里的功能入口（FAQ 管理等），与"退出登录"同一区域但用主题色 */
+/* 侧边栏里的功能入口（后台管理） */
 .sidebar-account .sidebar-link {
   display: block;
   width: 100%;
@@ -209,6 +203,7 @@ body {
 
 /* 右上角当前账号：多账号切换测试时一眼能看出登的是谁 */
 .topbar-user {
+  position: relative;
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -223,6 +218,60 @@ body {
   color: var(--primary);
   font-size: 11px;
 }
+
+/* 账号下拉菜单：修改密码 / 注销 */
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.user-trigger:hover { background: var(--bg-subtle); color: var(--text-main); }
+.user-trigger .caret { font-size: 10px; color: var(--text-muted); }
+
+.user-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 150px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+.user-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.user-menu button:hover { background: var(--bg-subtle); color: var(--text-main); }
+.user-menu button.is-danger { color: var(--danger); }
+.user-menu button.is-danger:hover { background: rgba(229, 83, 75, .08); }
+.user-menu .menu-icon { width: 14px; height: 14px; flex: none; }
+/* 退出登录和上面的账号操作分开 */
+.user-menu .menu-sep { height: 1px; margin: 6px 4px; background: var(--border); }
 
 /* 聊天区 */
 .chat-area {

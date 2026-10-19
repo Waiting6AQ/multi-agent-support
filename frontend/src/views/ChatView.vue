@@ -8,7 +8,7 @@
       </div>
       <div class="conv-list">
         <div class="conv-item" :class="{ active: !currentSessionId }" @click="newChat()" style="font-weight:600;">
-          <span class="title">💬 新对话</span>
+          <span class="title"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>新对话</span>
         </div>
         <div v-for="s in sessions" :key="s.id" class="conv-item"
              :class="{ active: sameId(s.id, currentSessionId) }" @click="switchChat(s.id)">
@@ -17,16 +17,15 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        💡 快速体验
-        <button class="scene" @click="quickAsk('蓝牙连不上怎么办')">🔧 蓝牙连接问题</button>
-        <button class="scene" @click="quickAsk('帮我查一下订单 ORD001')">📦 查询订单</button>
-        <button class="scene" @click="quickAsk('推荐一款 1000 以内的手表')">🛍️ 产品推荐</button>
+        <div class="scene-label"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>快速体验</div>
+        <button class="scene" @click="quickAsk('蓝牙连不上怎么办')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>蓝牙连接问题</button>
+        <button class="scene" @click="quickAsk('帮我查一下订单 ORD001')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>查询订单</button>
+        <button class="scene" @click="quickAsk('推荐一款 1000 以内的手表')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>产品推荐</button>
       </div>
 
       <!-- 账号操作独立成区，不混在"快速体验"里 -->
-      <div class="sidebar-account">
-        <button v-if="isAdmin" class="sidebar-link" @click="router.push('/admin')">⚙️ 后台管理</button>
-        <button class="logout-btn" @click="logout()">🚪 退出登录</button>
+      <div v-if="isAdmin" class="sidebar-account">
+        <button class="sidebar-link" @click="router.push('/admin')"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>后台管理</button>
       </div>
     </div>
 
@@ -38,9 +37,26 @@
           <h3>{{ topbar.name }}</h3>
           <span>在线</span>
         </div>
-        <div class="topbar-user" :title="isAdmin ? '管理员' : '普通用户'">
-          👤 {{ username }}
-          <span v-if="isAdmin" class="user-role">管理员</span>
+        <div class="topbar-user" ref="userMenuRef">
+          <button class="user-trigger" @click.stop="userMenuOpen = !userMenuOpen">
+            👤 {{ username }}
+            <span v-if="isAdmin" class="user-role">管理员</span>
+            <span class="caret">▾</span>
+          </button>
+          <div v-if="userMenuOpen" class="user-menu">
+            <button @click="openPassword()">修改密码</button>
+            <button class="is-danger" @click="deleteAccount()">注销账号</button>
+            <div class="menu-sep"></div>
+            <button @click="logout()">
+              <!-- 电源图标（内联 SVG，不引图标库；线宽随 currentColor 变化） -->
+              <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                <line x1="12" y1="2" x2="12" y2="12" />
+              </svg>
+              退出登录
+            </button>
+          </div>
         </div>
       </div>
 
@@ -92,21 +108,61 @@
         <span>{{ agentName }}</span>
       </div>
     </div>
+
+    <ChangePasswordModal v-if="showPassword"
+                         @close="showPassword = false"
+                         @done="onPasswordChanged" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import request from '../api/request'
 import MessageItem from '../components/MessageItem.vue'
 import ChatInput from '../components/ChatInput.vue'
+import ChangePasswordModal from '../components/ChangePasswordModal.vue'
 
 const router = useRouter()
 // 管理入口只对管理员显示；真正的权限校验在后端 @RequireAdmin
 const isAdmin = localStorage.getItem('roleCode') === 'ADMIN'
 // 顶栏显示当前账号，多账号测试时不用猜自己登的是谁
 const username = localStorage.getItem('username') || ''
+
+// 账号菜单：修改密码 / 注销
+const userMenuOpen = ref(false)
+const userMenuRef = ref(null)
+const showPassword = ref(false)
+
+function openPassword() {
+  userMenuOpen.value = false
+  showPassword.value = true
+}
+
+async function deleteAccount() {
+  userMenuOpen.value = false
+  if (!confirm('确定注销账号？你的全部会话和消息会被永久删除。')) return
+  try {
+    await request.delete('/users/me')
+    alert('账号已注销')
+    logout()
+  } catch (e) {
+    alert('注销失败: ' + (e.response?.data?.message || e.message))
+  }
+}
+
+function onPasswordChanged() {
+  showPassword.value = false
+  alert('密码已修改，请重新登录')
+  logout()
+}
+
+/** 点菜单外面收起账号菜单 */
+function onDocumentClick(e) {
+  if (userMenuOpen.value && userMenuRef.value && !userMenuRef.value.contains(e.target)) {
+    userMenuOpen.value = false
+  }
+}
 const route = useRoute()
 
 const sessions = ref([])
@@ -366,11 +422,16 @@ async function send() {
 }
 
 onMounted(async () => {
+  document.addEventListener('click', onDocumentClick)
   await loadSessions()
   // 地址栏里带了会话 id（刷新 / 直接粘贴链接）就恢复它，否则开新会话
   const id = route.params.sessionId
   if (id) await switchChat(id)
   else newChat()
   booting.value = false
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
 })
 </script>

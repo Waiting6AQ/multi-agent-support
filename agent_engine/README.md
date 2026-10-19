@@ -174,6 +174,12 @@ python main.py
 | `GET`    | `/api/v1/conversations/`     | 对话列表                |
 | `GET`    | `/api/v1/conversations/{id}` | 对话详情                |
 | `DELETE` | `/api/v1/conversations/{id}` | 删除对话                |
+| `GET`    | `/api/v1/faqs/`              | FAQ 列表（管理用）      |
+| `POST`   | `/api/v1/faqs/`              | 新增 FAQ（自动算向量）  |
+| `PUT`    | `/api/v1/faqs/{id}`          | 修改 FAQ（问题变了重算向量） |
+| `DELETE` | `/api/v1/faqs/{id}`          | 删除 FAQ                |
+
+> FAQ 管理接口的鉴权在 Java 网关（`@RequireAdmin`）完成；引擎作为内网服务不做认证。
 
 ### Docker
 
