@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # 0.4 取自实测——库内问题的距离在 0.23 以内，库外问题在 0.55 以上
     FAQ_MAX_DISTANCE: float = 0.4
 
+    # === 并发闸门（单进程有效；uvicorn --workers N 时每个进程各有一份） ===
+    MAX_CONCURRENT_CHATS: int = 8           # 同时在途的聊天请求
+    CONCURRENCY_WAIT_SECONDS: float = 1.5   # 拿不到许可时最多排队多久，超时返回 429
+
     # === PostgreSQL（会话状态 + 业务数据） ===
     # 必填：不配则启动即报错（fail-fast，与 DASHSCOPE_API_KEY 一致）
     # 本地开发连 localhost；容器内由 compose 注入服务名 postgres（见 docker-compose.yml）

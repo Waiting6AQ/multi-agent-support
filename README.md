@@ -13,6 +13,7 @@
 - **FAQ 管理**：管理员在后台维护技术支持 FAQ，新增/修改时自动生成或更新向量，改完立即生效
 - **后台管理**：`@RequireAdmin` 统一校验管理员权限；用户列表与删除（级联清会话、消息与引擎侧对话，不能删自己）
 - **容错降级**：AI 服务超时/不可达返回友好提示而非 500；客户端断连静默处理；全局异常统一 `Result` 结构
+- **两级限流**：网关令牌桶（每用户 3 QPS / 全局 30 QPS）+ 信号量（每用户 1 / 全局 8），引擎侧再设并发闸门（聊天 8）；超限返回 429 JSON，流式请求在开始前拒绝、结束后精确释放许可
 - **AI 引擎完整能力**：多 Agent 编排（意图路由 + 专科 Agent + 质量评估），见下方「AI 引擎核心链路」（引擎内部细节见 `agent_engine/README.md`）
 
 ## 技术栈
@@ -46,11 +47,13 @@ Spring Boot 业务后端 (:8082)
     ├─ 用户体系：注册/登录/角色（user + role）
     ├─ 会话管理：chat_session + chat_message（业务侧审计记录）
     ├─ 后台管理：/api/faqs（FAQ 维护）、/api/users（用户列表 / 删除），均限管理员
+    ├─ 限流：令牌桶（每用户 / 全局 QPS）+ 信号量（每用户 / 全局并发），超限 429
     ├─ 转发：/api/chat（非流式）、/api/chat/stream（SSE 透传）
     │      │  内部 HTTP（X-User-Id 可信头）
     │      ▼
     Python 多 Agent 引擎 (:8001)
     │  LangGraph：接待员 → 条件路由 → 专科 Agent → 质量检查 → 转人工判断
+    │  并发闸门：聊天 8（保护事件循环、线程池与 LLM 配额）
     ▼
 PostgreSQL（checkpoint 多轮上下文 / FAQ 向量索引，pgvector）
 ```
@@ -145,6 +148,8 @@ npm run dev
 | POST   | /api/chat          | 聊天（非流式，落库）          |
 | POST   | /api/chat/stream   | 聊天（SSE 流式，打字机效果）  |
 
+> 限流语义：超过阈值时聊天接口返回 `429` + `{"code":429,"message":"..."}`。流式接口只在**流开始前**返回 HTTP 错误；流开始后的异常以 SSE `event: error` 发送（此时状态码已是 200，无法再改）。
+
 ## Docker 部署（可选）
 
 一条命令启动完整系统（MySQL + PostgreSQL + 引擎 + Java 后端 + 前端），无需本地安装 Python/Node/JDK：
@@ -187,18 +192,43 @@ docker compose -f docker-compose.prod.yml up -d   # 自动拉取镜像并启动
 单元测试聚焦**安全边界与易错分支**（不追求覆盖率），全部用 mock / fake 隔离外部依赖，不依赖数据库、网络与真实向量库，可秒级跑完。
 
 ```bash
-# 业务后端：JUnit 5 + Mockito（15 个用例）
+# 业务后端：JUnit 5 + Mockito（23 个用例）
 #   覆盖：JWT 签发/过期/伪造签名、会话归属校验（防越权）、@RequireAdmin 权限门槛、
-#         落库内容与标题规则
+#         落库内容与标题规则、令牌桶突发/补充/容量上限、并发闸门与许可归还
 cd backend && .\mvnw.cmd test
 
-# AI 引擎：pytest（15 个用例）
+# AI 引擎：pytest（20 个用例）
 #   覆盖：LLM 输出的 JSON 解析兜底（Markdown 包裹）、种子数据幂等性、
-#         FAQ 检索的距离排序与阈值过滤
+#         FAQ 检索的距离排序与阈值过滤、并发闸门的获取/超时/异常释放
 cd agent_engine
 pip install -r requirements-dev.txt          # 仅测试依赖，不进生产镜像
 python -m pytest tests -q
 ```
+
+## 压测
+
+`scripts/load_test_chat.py` 只依赖 Python 标准库，用于验证限流与许可释放：
+
+```bash
+# 打引擎（默认 20 并发，不需要登录）
+python scripts/load_test_chat.py
+
+# 打网关（账号密码换 JWT）
+python scripts/load_test_chat.py --url http://localhost:8082/api/chat/stream \
+    --username admin --password admin123
+```
+
+实测环境（2 核，20 并发）：
+
+| 目标 | 结果 |
+| --- | --- |
+| Agent 引擎 | 8 × 200 / 12 × 429（引擎聊天闸门 8） |
+| 网关 · 同一用户 | 1 × 200 / 19 × 429（每用户并发 1） |
+| 网关 · 放宽每用户限制 | 8 × 200 / 12 × 429（全局并发 8） |
+
+压测结束后单发一条请求仍成功，说明许可没有泄漏。失败响应示例：
+`{"code":429,"message":"当前请求较多，请稍后再试","data":null}`。
+
 
 ## License
 

@@ -12,6 +12,7 @@
 - **多轮对话**：AsyncPostgresSaver 持久化 + `add_messages` 自动管理，上下文截断防止无限增长
 - **Token 级流式输出**：SSE 格式，实时意图反馈 + 打字机效果 + 质量评分
 - **容错与降级**：LLM 网络/限流自动重试 + 备用模型切换，MCP 服务启动/运行时两层降级，各 Agent 独立异常兜底，接待员失败自动转人工，质量评估失败降中性分
+- **并发闸门**：`asyncio.Semaphore` 限制同时在途的聊天（8），排队 1.5 秒后超时返回 429；流式响应在生成器 `finally` 里释放许可，避免泄漏（单进程有效，多 worker 时每进程各一份）
 - **客服风格 UI**：紫色渐变界面、气泡动画、意图标签、转人工横幅、快速体验按钮
 
 ## 技术栈
@@ -153,6 +154,9 @@ DASHSCOPE_API_KEY=sk-your-key-here
 # 本地开发要另配 PostgreSQL（库需先建好：CREATE DATABASE agent_engine;）
 # Docker 部署时不用配，由 docker-compose.yml 注入容器内服务名
 POSTGRES_DSN=postgresql://postgres:your_password@localhost:5432/agent_engine
+# 并发闸门（可选，不配则用 core/config.py 的默认值）
+# MAX_CONCURRENT_CHATS=8
+# CONCURRENCY_WAIT_SECONDS=1.5
 ```
 
 也可以通过环境变量设置。
