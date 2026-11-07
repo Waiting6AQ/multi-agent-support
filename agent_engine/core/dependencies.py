@@ -14,7 +14,13 @@ from core.concurrency import AsyncConcurrencyLimiter
 from core.database import get_session_factory
 # checkpointer 的实现与连接池在 core/postgres.py（这里只做转发，保持依赖注入入口统一）
 from core.postgres import get_checkpointer  # noqa: F401
-from utils.llm import create_llm, create_json_llm, create_raw_llm
+from utils.llm import (
+    create_fast_json_llm,
+    create_fast_llm,
+    create_json_llm,
+    create_llm,
+    create_raw_llm,
+)
 from utils.embeddings import AliyunEmbeddings
 from services.quality_checker import QualityChecker
 from services.conversation_service import ConversationService
@@ -31,7 +37,9 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 
 _embeddings = None
 _llm = None
+_fast_llm = None
 _json_llm = None
+_fast_json_llm = None
 _receptionist = None
 _quality_checker = None
 _tech_agent = None
@@ -68,6 +76,14 @@ def get_llm():
     return _llm
 
 
+def get_fast_llm():
+    """轻量模型单例（质量检查等判断类任务）"""
+    global _fast_llm
+    if _fast_llm is None:
+        _fast_llm = create_fast_llm()
+    return _fast_llm
+
+
 # ==================== 业务组件 ====================
 
 def get_json_llm():
@@ -78,19 +94,27 @@ def get_json_llm():
     return _json_llm
 
 
+def get_fast_json_llm():
+    """JSON Mode 的轻量模型单例（前台接待的意图分类）"""
+    global _fast_json_llm
+    if _fast_json_llm is None:
+        _fast_json_llm = create_fast_json_llm()
+    return _fast_json_llm
+
+
 def get_receptionist() -> ReceptionistAgent:
-    """前台接待 Agent 单例"""
+    """前台接待 Agent 单例（意图分类用轻量模型）"""
     global _receptionist
     if _receptionist is None:
-        _receptionist = ReceptionistAgent(json_llm=get_json_llm())
+        _receptionist = ReceptionistAgent(json_llm=get_fast_json_llm())
     return _receptionist
 
 
 def get_quality_checker() -> QualityChecker:
-    """质量检查器单例"""
+    """质量检查器单例（评分任务，用轻量模型）"""
     global _quality_checker
     if _quality_checker is None:
-        _quality_checker = QualityChecker(llm=get_llm())
+        _quality_checker = QualityChecker(llm=get_fast_llm())
     return _quality_checker
 
 

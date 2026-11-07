@@ -33,16 +33,43 @@ def _with_fallback(model, temperature: float | None = None, model_kwargs: dict |
     return model.with_fallbacks([backup])
 
 
-def create_llm(temperature: float | None = None):
-    """创建 LLM 实例，temperature 为 None 则使用默认配置"""
+def _create(model_name: str, temperature: float | None = None):
+    """按模型名创建实例，统一挂重试与备用模型"""
     model = init_chat_model(
-        settings.LLM_MODEL_NAME,
+        model_name,
         api_key=settings.DASHSCOPE_API_KEY,
         base_url=settings.LLM_BASE_URL,
         temperature=temperature if temperature is not None else settings.TEMPERATURE,
         max_tokens=settings.MAX_TOKENS,
     )
     return _with_fallback(_with_retry(model), temperature)
+
+
+def create_llm(temperature: float | None = None):
+    """创建 LLM 实例，temperature 为 None 则使用默认配置"""
+    return _create(settings.LLM_MODEL_NAME, temperature)
+
+
+def create_fast_llm(temperature: float | None = None):
+    """创建轻量模型实例（分类 / 打分这类短输出任务）
+
+    LLM_FAST_MODEL_NAME 未配置时回落到主模型，行为与改造前完全一致。
+    """
+    return _create(settings.LLM_FAST_MODEL_NAME or settings.LLM_MODEL_NAME, temperature)
+
+
+def create_fast_json_llm():
+    """JSON Mode 的轻量模型（前台接待：意图分类 + 回复，输出短 JSON）"""
+    kwargs = {"response_format": {"type": "json_object"}}
+    model = init_chat_model(
+        settings.LLM_FAST_MODEL_NAME or settings.LLM_MODEL_NAME,
+        api_key=settings.DASHSCOPE_API_KEY,
+        base_url=settings.LLM_BASE_URL,
+        temperature=settings.TEMPERATURE,
+        max_tokens=settings.MAX_TOKENS,
+        model_kwargs=kwargs,
+    )
+    return _with_fallback(_with_retry(model), model_kwargs=kwargs)
 
 
 def create_raw_llm(temperature: float | None = None):

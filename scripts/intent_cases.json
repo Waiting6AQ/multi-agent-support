@@ -1,0 +1,16 @@
+[
+  { "message": "蓝牙连接不上怎么办？", "expected": "tech_support" },
+  { "message": "设备充不进电，指示灯也不亮", "expected": "tech_support" },
+  { "message": "怎么恢复出厂设置？", "expected": "tech_support" },
+  { "message": "我的订单 ORD001 到哪了？", "expected": "order_service" },
+  { "message": "帮我查一下快递单号 SF1234567890", "expected": "order_service" },
+  { "message": "买的东西想退货，怎么操作？", "expected": "order_service" },
+  { "message": "智能手表 Pro 有什么功能？", "expected": "product_consult" },
+  { "message": "2000 元以内有什么推荐？", "expected": "product_consult" },
+  { "message": "无线耳机 Max 多少钱？", "expected": "product_consult" },
+  { "message": "华为最新款手表和小米的对比一下", "expected": "web_search" },
+  { "message": "iPhone 16 的参数怎么样？", "expected": "web_search" },
+  { "message": "你好", "expected": "chitchat" },
+  { "message": "我要投诉你们的客服", "expected": "escalate" },
+  { "message": "你们这个破系统，气死我了", "expected": "escalate" }
+]
