@@ -7,6 +7,7 @@ async 依赖会自动被 await。
 单例模式：通过模块级缓存变量确保昂贵资源只初始化一次。
 """
 import asyncio
+import logging
 import time
 
 from core.config import settings, MCP_SERVERS
@@ -32,6 +33,8 @@ from agents.product_consult import ProductConsultAgent
 from agents.receptionist import ReceptionistAgent
 from agents.web_search import WebSearchAgent
 from langchain_mcp_adapters.client import MultiServerMCPClient
+
+logger = logging.getLogger(__name__)
 
 # ==================== 模块级缓存 ====================
 
@@ -216,8 +219,8 @@ async def get_web_agent() -> WebSearchAgent:
     except Exception as e:
         # 降级而非抛出：Agent 按系统提示词告知用户无法搜索，整个管线不崩
         _web_agent_retry_after = time.monotonic() + MCP_RETRY_COOLDOWN
-        print(f"⚠️ MCP 工具加载失败，联网搜索降级"
-              f"（{MCP_RETRY_COOLDOWN:.0f}s 后重试）: {_describe_exc(e)}")
+        logger.warning("MCP 工具加载失败，联网搜索降级（%.0fs 后重试）: %s",
+                       MCP_RETRY_COOLDOWN, _describe_exc(e))
         mcp_tools = []
 
     _web_agent = WebSearchAgent(llm=create_raw_llm(), tools=mcp_tools)

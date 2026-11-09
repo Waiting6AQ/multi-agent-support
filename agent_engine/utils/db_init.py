@@ -9,15 +9,19 @@
 注：建表不在这里 —— 表结构由 models/tables.py 的 ORM 模型定义，
 由 core/database.py 的 init_database() 用 Base.metadata.create_all 建出来。
 """
+import logging
+
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from utils.db_seed import seed_faq, seed_orders, seed_products
 
+logger = logging.getLogger(__name__)
+
 
 async def seed_all(session_factory: async_sessionmaker, embeddings) -> None:
     """启动时统一执行种子数据初始化"""
-    print("🔧 正在初始化种子数据...")
+    logger.info("正在初始化种子数据...")
     await seed_faq(session_factory, embeddings)
     await seed_orders(session_factory)
     await seed_products(session_factory)
-    print("✅ 种子数据初始化全部完成")
+    logger.info("种子数据初始化全部完成")

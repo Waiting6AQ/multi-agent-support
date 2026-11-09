@@ -6,12 +6,16 @@
 - Skill：support-workflow（完整工作流：FAQ 检索 → 分支 → 结构化排查）
 使用 Deep Agents 框架的 SkillsMiddleware 实现渐进式披露。
 """
+import logging
+
 from langchain_core.tools import tool
 from langchain.agents.middleware import ModelRetryMiddleware
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from core.config import settings
 from agents._stream import stream_agent_tokens
+
+logger = logging.getLogger(__name__)
 
 
 AGENT_SKILLS_DIR = settings.SKILLS_DIR + "/tech_support"
@@ -59,7 +63,7 @@ class TechSupportAgent:
             if result["messages"]:
                 return result["messages"][-1].content
         except Exception as e:
-            print(f"⚠️ 技术支持 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("技术支持 Agent 异常: %s: %s", type(e).__name__, e)
         return "抱歉，技术支持服务暂时不可用。请稍后重试，或拨打客服热线 400-xxx-xxxx 获取帮助。"
 
     async def handle_stream(self, messages: list, on_tool_call=None):
@@ -70,6 +74,6 @@ class TechSupportAgent:
                 had_content = True
                 yield text
         except Exception as e:
-            print(f"⚠️ 技术支持 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("技术支持 Agent 异常: %s: %s", type(e).__name__, e)
         if not had_content:
             yield "抱歉，技术支持服务暂时不可用。请稍后重试，或拨打客服热线 400-xxx-xxxx 获取帮助。"

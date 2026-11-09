@@ -6,9 +6,13 @@ MCP Server: 千帆 web-search，Streamable HTTP 协议 + Bearer 鉴权接入。
 Agent 运行时动态发现 webSearch 工具，自主决定是否调用。
 MCP 工具是纯异步的，因此 Agent 使用 astream/ainvoke。
 """
+import logging
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRetryMiddleware
 from agents._stream import stream_agent_tokens
+
+logger = logging.getLogger(__name__)
 
 
 class WebSearchAgent:
@@ -48,7 +52,7 @@ class WebSearchAgent:
             if result["messages"]:
                 return result["messages"][-1].content
         except Exception as e:
-            print(f"⚠️ 联网搜索 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("联网搜索 Agent 异常: %s: %s", type(e).__name__, e)
         return "抱歉，联网搜索暂时不可用。请稍后再试或联系人工客服。"
 
     async def handle_stream(self, messages: list, on_tool_call=None):
@@ -68,6 +72,6 @@ class WebSearchAgent:
                 yield text
         except Exception as e:
             # MCP 服务中途不可用时降级：已有部分内容照常输出
-            print(f"⚠️ 联网搜索 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("联网搜索 Agent 异常: %s: %s", type(e).__name__, e)
         if not had_content:
             yield "抱歉，联网搜索暂时不可用。请稍后再试或联系人工客服。"

@@ -4,6 +4,7 @@
 负责订单查询、物流跟踪，工具：query_order、track_shipping（PostgreSQL ORM 查询）。
 """
 import json
+import logging
 
 from langchain_core.tools import tool
 from langchain.agents import create_agent
@@ -13,6 +14,8 @@ from agents._stream import stream_agent_tokens
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from models.tables import Order
+
+logger = logging.getLogger(__name__)
 
 
 def _to_dict(order: Order) -> dict:
@@ -91,7 +94,7 @@ class OrderServiceAgent:
             if result["messages"]:
                 return result["messages"][-1].content
         except Exception as e:
-            print(f"⚠️ 订单服务 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("订单服务 Agent 异常: %s: %s", type(e).__name__, e)
         return "抱歉，订单查询服务暂时不可用。请稍后再试或联系人工客服。"
 
     async def handle_stream(self, messages: list, on_tool_call=None):
@@ -102,6 +105,6 @@ class OrderServiceAgent:
                 had_content = True
                 yield text
         except Exception as e:
-            print(f"⚠️ 订单服务 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("订单服务 Agent 异常: %s: %s", type(e).__name__, e)
         if not had_content:
             yield "抱歉，订单查询服务暂时不可用。请稍后再试或联系人工客服。"

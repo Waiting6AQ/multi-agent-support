@@ -4,6 +4,7 @@
 负责产品搜索、推荐，工具：search_product、get_recommendations（PostgreSQL ORM 查询）。
 """
 import json
+import logging
 
 from langchain_core.tools import tool
 from langchain.agents import create_agent
@@ -13,6 +14,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from models.tables import Product
 from agents._stream import stream_agent_tokens
+
+logger = logging.getLogger(__name__)
 
 
 def _to_dict(product: Product) -> dict:
@@ -98,7 +101,7 @@ class ProductConsultAgent:
             if result["messages"]:
                 return result["messages"][-1].content
         except Exception as e:
-            print(f"⚠️ 产品咨询 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("产品咨询 Agent 异常: %s: %s", type(e).__name__, e)
         return "抱歉，产品咨询服务暂时不可用。请稍后再试或联系人工客服。"
 
     async def handle_stream(self, messages: list, on_tool_call=None):
@@ -109,6 +112,6 @@ class ProductConsultAgent:
                 had_content = True
                 yield text
         except Exception as e:
-            print(f"⚠️ 产品咨询 Agent 异常: {type(e).__name__}: {e}")
+            logger.warning("产品咨询 Agent 异常: %s: %s", type(e).__name__, e)
         if not had_content:
             yield "抱歉，产品咨询服务暂时不可用。请稍后再试或联系人工客服。"

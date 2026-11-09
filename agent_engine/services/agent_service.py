@@ -10,6 +10,7 @@
 - 流式输出：SSE 格式，逐阶段返回（意图 → 回复 → 质量评分 → 完成）
 """
 import json
+import logging
 import uuid
 from typing import TypedDict, Annotated, Any, AsyncGenerator, Literal
 from langgraph.graph import StateGraph, START, END
@@ -20,6 +21,8 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from core.config import settings
 from models.chat import ChatResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _turn_input(message: str) -> dict:
@@ -312,7 +315,7 @@ class AgentService:
             # 质量检查没跑（图结构被改坏了）。不抛——它不是唯一判据：下面的分数判断仍然有效，
             # 而且 quality_score 每轮初值是 0.0，会落到"转人工"这条安全路。
             # （对比 _route_by_receptionist：那里 intent 缺失只能兜底成空消息，所以才抛）
-            print("⚠️ quality_check 未设置 needs_escalation，仅按分数判断")
+            logger.warning("quality_check 未设置 needs_escalation，仅按分数判断")
         elif needs_escalation:
             return "escalate_final"
         if state.get("quality_score", 0.0) < settings.QUALITY_SCORE_THRESHOLD:

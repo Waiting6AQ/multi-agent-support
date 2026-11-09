@@ -5,6 +5,9 @@
 利用 DashScope JSON Mode 保证输出为合法 JSON，一次 LLM 调用完成分类 + 闲聊。
 """
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ReceptionistAgent:
@@ -45,7 +48,7 @@ class ReceptionistAgent:
             }
         except Exception as e:
             # LLM 调用失败或 JSON 解析失败：降级为转人工，管线不崩
-            print(f"⚠️ 接待员分类异常: {type(e).__name__}: {e}")
+            logger.warning("接待员分类异常: %s: %s", type(e).__name__, e)
             return {
                 "intent": "escalate",
                 "reply": "抱歉，客服系统暂时繁忙，请稍后再试或联系人工客服。",

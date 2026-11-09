@@ -3,11 +3,14 @@
 
 评估 Agent 回复质量，决定是否需要升级人工。
 """
+import logging
 from typing import Any
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from utils.json_utils import safe_parse_json
+
+logger = logging.getLogger(__name__)
 
 
 class QualityChecker:
@@ -60,5 +63,5 @@ class QualityChecker:
             return safe_parse_json(result, default)
         except Exception as e:
             # 质量评估失败时给出中性分，不影响主回复流程
-            print(f"⚠️ 质量评估异常: {type(e).__name__}: {e}")
+            logger.warning("质量评估异常: %s: %s", type(e).__name__, e)
             return {"total_score": 60, "needs_escalation": False, "reason": f"评估失败降级: {type(e).__name__}"}

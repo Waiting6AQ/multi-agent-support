@@ -5,12 +5,15 @@
 建表在 core/database.py 的 init_database() 里用 Base.metadata.create_all 完成。
 """
 import asyncio
+import logging
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from core.config import settings
 from models.tables import Faq, Order, Product
+
+logger = logging.getLogger(__name__)
 
 
 # ==================== FAQ 数据 ====================
@@ -129,7 +132,7 @@ async def seed_faq(session_factory: async_sessionmaker, embeddings) -> None:
     async with session_factory() as session:
         existing = await session.scalar(select(func.count()).select_from(Faq))
         if existing:
-            print(f"ℹ️  faqs 表已有 {existing} 条数据，跳过初始化")
+            logger.info("faqs 表已有 %d 条数据，跳过初始化", existing)
             return
 
         # 一次批量嵌入（方法内部按 20 条分批），比逐条 embed_query 少一堆往返
@@ -153,7 +156,7 @@ async def seed_faq(session_factory: async_sessionmaker, embeddings) -> None:
             for entry, vec in zip(FAQ_ENTRIES, vectors, strict=True)
         )
         await session.commit()
-    print(f"✅ faqs 表初始化完成，共 {len(FAQ_ENTRIES)} 条")
+    logger.info("faqs 表初始化完成，共 %d 条", len(FAQ_ENTRIES))
 
 
 async def seed_orders(session_factory: async_sessionmaker) -> None:
@@ -161,11 +164,11 @@ async def seed_orders(session_factory: async_sessionmaker) -> None:
     async with session_factory() as session:
         existing = await session.scalar(select(func.count()).select_from(Order))
         if existing:
-            print(f"ℹ️  orders 表已有 {existing} 条数据，跳过初始化")
+            logger.info("orders 表已有 %d 条数据，跳过初始化", existing)
             return
         session.add_all([Order(**o) for o in ORDERS])
         await session.commit()
-    print(f"✅ orders 表初始化完成，共 {len(ORDERS)} 条")
+    logger.info("orders 表初始化完成，共 %d 条", len(ORDERS))
 
 
 async def seed_products(session_factory: async_sessionmaker) -> None:
@@ -173,8 +176,8 @@ async def seed_products(session_factory: async_sessionmaker) -> None:
     async with session_factory() as session:
         existing = await session.scalar(select(func.count()).select_from(Product))
         if existing:
-            print(f"ℹ️  products 表已有 {existing} 条数据，跳过初始化")
+            logger.info("products 表已有 %d 条数据，跳过初始化", existing)
             return
         session.add_all([Product(**p) for p in PRODUCTS])
         await session.commit()
-    print(f"✅ products 表初始化完成，共 {len(PRODUCTS)} 条")
+    logger.info("products 表初始化完成，共 %d 条", len(PRODUCTS))
