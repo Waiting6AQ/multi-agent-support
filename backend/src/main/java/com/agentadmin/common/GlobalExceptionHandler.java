@@ -40,6 +40,7 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("；"));
+        log.warn("参数校验失败: {}", msg);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.error(400, msg));
     }
 
@@ -56,6 +57,9 @@ public class GlobalExceptionHandler {
             log.debug("响应已提交，无法写入业务错误: {}", e.getMessage());
             return;
         }
+        // 429（限流）/ 503（AI 不可用）都走这里：记下 code 和原因，
+        // 访问日志只到状态码，具体是"上一个问题还在处理中"还是"当前请求较多"要看这一行
+        log.warn("业务异常 {}: {}", e.getCode(), e.getMessage());
         response.setStatus(e.getCode());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

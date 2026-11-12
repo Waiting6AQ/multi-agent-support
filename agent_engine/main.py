@@ -21,6 +21,7 @@ import os
 import sys
 
 from core.config import settings
+from core.trace import TraceIdMiddleware
 from routers import chat, conversations, faqs
 
 # ==================== 控制台编码兼容 ====================
@@ -100,6 +101,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 链路 ID 中间件：后 add 的在外层，所以它包住 CORS 和路由，
+# 保证请求一进来就有 traceId，日志里每一行都带
+app.add_middleware(TraceIdMiddleware)
+
 # ==================== 注册路由 ====================
 
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
@@ -128,7 +133,8 @@ if __name__ == "__main__":
     import sys
     import uvicorn
 
-    reload = os.getenv("DISABLE_RELOAD", "").lower() != "true"
+    # 热重载默认关闭：启动要连库、灌种子、预热 MCP，重启比改代码还慢；需要时设 RELOAD=true
+    reload = os.getenv("RELOAD", "").lower() == "true"
 
     # Windows 必须显式指定事件循环工厂：uvicorn 在 win32 上硬编码用 ProactorEventLoop，
     # 而 psycopg 的异步模式不支持它。Linux 容器不传，保留 uvicorn 默认（uvloop）。
@@ -137,8 +143,8 @@ if __name__ == "__main__":
         if sys.platform == "win32"
         else {}
     )
-    # reload_excludes：日志目录在项目内，不排除的话每写一行日志都会触发一次重载检测
+    # reload_excludes 只在真开 reload 时传：否则 uvicorn 会打一条"配置不会生效"的警告
     uvicorn.run(
         "main:app", host="0.0.0.0", port=8001, reload=reload,
-        reload_excludes=["logs", "logs/*"], **extra,
+        reload_excludes=["logs", "logs/*"] if reload else None, **extra,
     )

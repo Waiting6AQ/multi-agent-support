@@ -11,6 +11,7 @@
 """
 import json
 import logging
+import time
 import uuid
 from typing import TypedDict, Annotated, Any, AsyncGenerator, Literal
 from langgraph.graph import StateGraph, START, END
@@ -23,6 +24,17 @@ from core.config import settings
 from models.chat import ChatResponse
 
 logger = logging.getLogger(__name__)
+
+# 业务日志用阶段/模块名当标签：格式化后是 [agent.order_service] 这种短标签，
+# 消息里不必重复写是谁，也能直接 grep 某一类
+log_receptionist = logging.getLogger("agent.receptionist")
+log_tool = logging.getLogger("agent.tool")
+log_quality = logging.getLogger("agent.quality")
+log_escalate = logging.getLogger("agent.escalate")
+log_tech = logging.getLogger("agent.tech_support")
+log_order = logging.getLogger("agent.order_service")
+log_product = logging.getLogger("agent.product_consult")
+log_web = logging.getLogger("agent.web_search")
 
 
 def _turn_input(message: str) -> dict:
@@ -144,6 +156,7 @@ class AgentService:
         """节点1：前台接待 — 意图分类 + 闲聊/转人工时直接生成回复（async — LLM 异步调用）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "前台接待中"})
+        started = time.perf_counter()
 
         # 直接传消息对象，不做角色转换：历史里 HumanMessage / AIMessage 的角色本来就是对的
         # （包括"上一轮中途失败、只留下一条用户消息"这种情况）。手工转成 dict 并写死
@@ -161,6 +174,8 @@ class AgentService:
         reply = result["reply"]
 
         writer({"event": "intent", "data": {"intent": intent, "confidence": confidence}})
+        log_receptionist.info("intent=%s confidence=%.2f 耗时=%.2fs",
+                              intent, confidence, time.perf_counter() - started)
 
         # chitchat/escalate：接待员已生成回复，直接返回
         if intent in ("chitchat", "escalate"):
@@ -208,16 +223,20 @@ class AgentService:
         writer = get_stream_writer()
         writer({"event": "progress", "data": "技术支持工程师正在处理"})
 
+        started = time.perf_counter()
         recent = state["messages"][-11:]  # 保留 5 个完整轮次 + 当前问题，防止多轮历史过长
 
         # 调工具期间不产出 token，补一次进度
-        def _on_tool_call() -> None:
+        def _on_tool_call(name: str | None = None) -> None:
+            if name:
+                log_tool.info("调用工具 %s", name)
             writer({"event": "progress", "data": "正在查阅资料"})
 
         reply = ""
         async for token in self.tech_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
+        log_tech.info("输出=%d字 耗时=%.2fs", len(reply), time.perf_counter() - started)
         return {
             "agent_response": reply,
             "messages": [AIMessage(content=reply)],
@@ -228,16 +247,20 @@ class AgentService:
         writer = get_stream_writer()
         writer({"event": "progress", "data": "订单服务专员正在处理"})
 
+        started = time.perf_counter()
         recent = state["messages"][-11:]
 
         # 调工具期间不产出 token，补一次进度
-        def _on_tool_call() -> None:
+        def _on_tool_call(name: str | None = None) -> None:
+            if name:
+                log_tool.info("调用工具 %s", name)
             writer({"event": "progress", "data": "正在查询订单"})
 
         reply = ""
         async for token in self.order_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
+        log_order.info("输出=%d字 耗时=%.2fs", len(reply), time.perf_counter() - started)
         return {
             "agent_response": reply,
             "messages": [AIMessage(content=reply)],
@@ -248,15 +271,19 @@ class AgentService:
         writer = get_stream_writer()
         writer({"event": "progress", "data": "产品顾问正在处理"})
 
+        started = time.perf_counter()
         recent = state["messages"][-11:]
 
         # 调工具期间不产出 token，补一次进度
-        def _on_tool_call() -> None:
+        def _on_tool_call(name: str | None = None) -> None:
+            if name:
+                log_tool.info("调用工具 %s", name)
             writer({"event": "progress", "data": "正在查询产品库"})
         reply = ""
         async for token in self.product_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
+        log_product.info("输出=%d字 耗时=%.2fs", len(reply), time.perf_counter() - started)
         return {
             "agent_response": reply,
             "messages": [AIMessage(content=reply)],
@@ -268,14 +295,18 @@ class AgentService:
         writer({"event": "progress", "data": "正在联网搜索"})
 
         # 调工具期间不产出 token，补一次进度
-        def _on_tool_call() -> None:
+        def _on_tool_call(name: str | None = None) -> None:
+            if name:
+                log_tool.info("调用工具 %s", name)
             writer({"event": "progress", "data": "正在获取搜索结果"})
 
+        started = time.perf_counter()
         recent = state["messages"][-11:]
         reply = ""
         async for token in self.web_agent.handle_stream(recent, on_tool_call=_on_tool_call):
             reply += token
             writer(token)
+        log_web.info("输出=%d字 耗时=%.2fs", len(reply), time.perf_counter() - started)
         return {
             "agent_response": reply,
             "messages": [AIMessage(content=reply)],
@@ -285,6 +316,7 @@ class AgentService:
         """节点4：评估 Agent 回复质量（async — LLM 异步调用）"""
         writer = get_stream_writer()
         writer({"event": "progress", "data": "正在检查回复质量"})
+        started = time.perf_counter()
 
         # messages[-1] 是 Agent 刚追加的 AIMessage，-2 才是用户消息
         user_msg = state["messages"][-2].content
@@ -300,6 +332,9 @@ class AgentService:
         needs_escalation = result.get("needs_escalation", False)
         reason = result.get("reason", "")
 
+        log_quality.info("总分=%d 升级=%s 耗时=%.2fs",
+                         total_score, str(needs_escalation).lower(),
+                         time.perf_counter() - started)
         return {
             "quality_score": quality_score,
             "needs_escalation": needs_escalation,
@@ -324,6 +359,7 @@ class AgentService:
 
     def _node_escalate_final(self, state: AgentState) -> dict:
         """节点5：标记转人工（前端展示横幅，后端不修改回复文字）"""
+        log_escalate.info("转人工 原因=%s", state.get("escalation_reason") or "未给出")
         return {
             "needs_escalation": True,
         }

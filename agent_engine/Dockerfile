@@ -14,9 +14,6 @@ COPY . .
 # 日志的先后顺序会错乱（uvicorn 的启动日志走 stderr、即时输出，访问日志才走 stdout）
 ENV PYTHONUNBUFFERED=1
 
-# 关闭 reload（避免容器内文件变动触发重启死循环）
-ENV DISABLE_RELOAD=true
-
 # 暴露端口
 EXPOSE 8001
 

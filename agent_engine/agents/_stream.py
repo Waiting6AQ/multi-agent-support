@@ -11,12 +11,13 @@ from typing import Any
 async def stream_agent_tokens(
     agent: Any,
     messages: list,
-    on_tool_call: Callable[[], Any] | None = None,
+    on_tool_call: Callable[[str | None], Any] | None = None,
 ) -> AsyncGenerator[str, None]:
     """逐 token 吐出正文；模型发起工具调用时回调一次 on_tool_call
 
     工具返回的消息（type == "tool"）跳过——那是给模型看的原始结果，不进正文。
     on_tool_call 同步/异步都支持；工具调用分多个 chunk 到达，用标志保证只回调一次。
+    回调参数是工具名（只有第一个分片带名字，后面是参数分片）。
     """
     searching = False
     async for chunk in agent.astream({"messages": messages}, stream_mode="messages"):
@@ -31,6 +32,7 @@ async def stream_agent_tokens(
         elif getattr(msg, "tool_call_chunks", None) and not searching:
             searching = True
             if on_tool_call is not None:
-                result = on_tool_call()
+                name = next((c.get("name") for c in msg.tool_call_chunks if c.get("name")), None)
+                result = on_tool_call(name)
                 if inspect.isawaitable(result):
                     await result
