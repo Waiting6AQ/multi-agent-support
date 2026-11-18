@@ -32,7 +32,15 @@ class Settings(BaseSettings):
 
     # === Agent 参数 ===
     TEMPERATURE: float = 0.1
-    MAX_TOKENS: int = 2000
+    # LLM 最大输出长度。混合思考模型的思考 token 也计入该上限
+    # （LangChain 实际发送 max_completion_tokens），必须明显大于思考所需量，
+    # 否则正文可能为空
+    MAX_TOKENS: int = 8192
+    # 是否开启思考（具体模型由 .env 的 LLM_MODEL_NAME 决定）
+    ENABLE_THINKING: bool = True
+    # 思考强度：low / medium / xhigh。客服场景不需要长思考，统一用 low；
+    # qwen3.8 系列的默认值为 xhigh
+    REASONING_EFFORT: str = "low"
     INTENT_CONFIDENCE_THRESHOLD: float = 0.6  # 意图置信度低于此值直接转人工
     QUALITY_SCORE_THRESHOLD: float = 0.6      # 质量评分低于此值升级人工
     FAQ_TOP_K: int = 3                        # FAQ 向量检索返回数量
